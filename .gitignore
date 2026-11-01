@@ -1,0 +1,11 @@
+# PlatformIO
+.pio/
+*.map
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+
+# Notes, test results and other non-code
+notes/
+local/
