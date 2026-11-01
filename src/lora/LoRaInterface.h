@@ -32,6 +32,11 @@ public:
 		uint32_t tx_packets, tx_dropped, tx_airtime_ms;
 	};
 	const Stats& stats() const { return _stats; }
+
+	// Online when the radio is configured and receiving; offline drops anything
+	// queued. Call after every radio settings change (updates the bitrate).
+	void set_online(bool online);
+	bool online() const { return _online; }
 	uint32_t queued() const { return _tx_queue.size(); }
 
 protected:

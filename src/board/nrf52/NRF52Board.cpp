@@ -43,7 +43,7 @@ uint16_t NRF52Board::battery_mv() {
 	uint32_t sum = 0;
 	for (int i = 0; i < 4; i++) sum += analogRead(BOARD_VBAT);
 	float adc_mv = (sum / 4.0f) * 3600.0f / 4096.0f;
-	return (uint16_t)(adc_mv * BOARD_VBAT_DIVIDER + 0.5f);
+	return (uint16_t)(adc_mv * BOARD_VBAT_DIVIDER * _vbat_calibration + 0.5f);
 #else
 	return 0;
 #endif

@@ -6,6 +6,9 @@
 .vscode/*
 !.vscode/extensions.json
 
+# Per-machine build overrides
+platformio.local*.ini
+
 # Notes, test results and other non-code
 notes/
 local/

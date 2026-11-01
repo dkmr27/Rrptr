@@ -24,8 +24,13 @@ public:
 
 	// Battery voltage in mV, 0 if the board cannot measure it
 	virtual uint16_t battery_mv() = 0;
+	// Per-unit trim of the divider ratio, from the Battery Calibration setting
+	void set_battery_calibration(float factor) { _vbat_calibration = factor; }
 
 	void led(bool on);
+	// LED for transmit activity; does nothing while the LED mode is off
+	void tx_led(bool on) { if (_tx_led_enabled || !on) led(on); }
+	void set_tx_led(bool enabled) { _tx_led_enabled = enabled; if (!enabled) led(false); }
 	bool button_pressed();
 
 	// Sleep until an event or `max_ms` has passed
@@ -35,6 +40,10 @@ public:
 	// Reboot into the bootloader's OTA update mode, if supported
 	virtual bool enter_ota() { return false; }
 	virtual const char* reset_reason() = 0;
+
+protected:
+	float _vbat_calibration = 1.0f;
+	bool  _tx_led_enabled = true;
 };
 
 extern Board& board;

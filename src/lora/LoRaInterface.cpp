@@ -17,8 +17,19 @@ LoRaInterface::LoRaInterface(Radio& radio, const char* name)
 
 bool LoRaInterface::start() {
 	update_bitrate();
-	_online = true;
 	return true;
+}
+
+void LoRaInterface::set_online(bool online) {
+	if (!online) {
+		// Nothing queued or half-received survives a radio change
+		_tx_queue.clear();
+		_tx_active = false;
+		_rx_seq = -1;
+		board.tx_led(false);
+	}
+	update_bitrate();
+	_online = online;
 }
 
 // LoRa bitrate from the modem settings, so microReticulum's announce rate
@@ -36,7 +47,7 @@ void LoRaInterface::loop() {
 	case Radio::EVENT_TX_DONE: transmit_done(); break;
 	default: break;
 	}
-	if (!_tx_active) start_next_packet();
+	if (_online && !_tx_active) start_next_packet();
 }
 
 void LoRaInterface::receive_frame() {
@@ -94,6 +105,7 @@ void LoRaInterface::deliver(const uint8_t* data, size_t len, float rssi, float s
 
 // ─── Transmit ───────────────────────────────────────────────
 bool LoRaInterface::send_outgoing(const RNS::Bytes& data) {
+	if (!_online) return false;
 	if (data.size() == 0 || data.size() > HW_MTU || _tx_queue.size() >= TX_QUEUE_MAX) {
 		_stats.tx_dropped++;
 		WARNINGF("LoRa: dropped outgoing packet (%u bytes, %u queued)", data.size(), _tx_queue.size());
@@ -114,7 +126,7 @@ void LoRaInterface::start_next_packet() {
 	_tx_header = RNS::Cryptography::random(1).data()[0] & HEADER_SEQ;
 	if (_tx_packet.size() > FRAME_PAYLOAD) _tx_header |= HEADER_SPLIT;
 	_tx_active = true;
-	board.led(true);
+	board.tx_led(true);
 
 	size_t len = std::min(_tx_packet.size(), FRAME_PAYLOAD);
 	transmit_frame(_tx_packet.data(), len);
@@ -130,7 +142,7 @@ void LoRaInterface::transmit_frame(const uint8_t* data, size_t len) {
 		ERRORF("LoRa: transmit failed (%d)", state);
 		_stats.tx_dropped++;
 		_tx_active = false;
-		board.led(false);
+		board.tx_led(false);
 	}
 }
 
@@ -142,7 +154,7 @@ void LoRaInterface::transmit_done() {
 		return;
 	}
 	_tx_active = false;
-	board.led(false);
+	board.tx_led(false);
 	_stats.tx_packets++;
 	handle_outgoing(_tx_packet);
 }
