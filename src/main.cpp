@@ -1,17 +1,22 @@
 // Rrptr: Reticulum transport node for LoRa.
 //
-// Radio layer stage: brings up the board and radio 0 with fixed test settings
-// and listens. Every packet heard is printed with its RSSI, SNR and length.
-// Serial keys (temporary, until the CLI): t = transmit a test packet,
-// n = noise floor, a = AGC reset, s = status.
+// LoRa interface stage: brings up the board and radio 0 with fixed test
+// settings and runs microReticulum as a transport node on it.
+// Serial keys (temporary, until the CLI): s = status, n = noise floor,
+// a = AGC reset.
 
 #include <Arduino.h>
 #if defined(RRPTR_MCU_NRF52)
 #include <Adafruit_TinyUSB.h>
 #endif
 
+#include <microStore/FileSystem.h>
+#include <microStore/Adapters/InternalFSFileSystem.h>
+#include <microReticulum.h>
+
 #include "board/Board.h"
 #include "radio/Radio.h"
+#include "lora/LoRaInterface.h"
 
 // Fixed test settings until the settings store exists
 static const RadioConfig TEST_CONFIG = {
@@ -24,57 +29,74 @@ static const RadioConfig TEST_CONFIG = {
 	18,             // preamble symbols
 };
 
+// Internal flash for now; the W25Q128 comes with the storage step
+static microStore::FileSystem filesystem{microStore::Adapters::InternalFSFileSystem()};
+
 static Radio* radio = nullptr;
 static int16_t radio_error = RADIOLIB_ERR_NONE;
-static uint32_t tx_count = 0;
+static LoRaInterface* lora = nullptr;
+static RNS::Interface lora_interface(RNS::Type::NONE);
+static RNS::Reticulum reticulum(RNS::Type::NONE);
 
 static void report() {
-	Serial.printf("Rrptr %s (%s, %s) on %s, reset: %s, battery %u mV\r\n",
+	Serial.printf("Rrptr %s (%s, %s) on %s, reset: %s, battery %u mV, up %lu s\r\n",
 		RRPTR_VERSION, RRPTR_GIT_HASH, RRPTR_BUILD_DATE, board.name(),
-		board.reset_reason(), board.battery_mv());
-	if (radio) {
-		const RadioConfig& c = radio->config();
-		Serial.printf("radio0 %s: %.3f MHz, %.1f kHz, SF%u, CR4/%u, %d dBm (max %d)\r\n",
-			radio->chip_name(), c.freq_hz / 1e6f, c.bandwidth_hz / 1e3f, c.sf, c.cr,
-			radio->applied_power_dbm(), radio->max_output_power(c.freq_hz));
-	}
-}
-
-static void print_packet(const uint8_t* buf, int16_t len) {
-	Serial.printf("rx %d bytes, RSSI %.1f dBm, SNR %.2f dB:", len,
-		radio->packet_rssi(), radio->packet_snr());
-	for (int16_t i = 0; i < len && i < 32; i++) Serial.printf(" %02x", buf[i]);
-	if (len > 32) Serial.print(" ...");
-	Serial.print("\r\n");
-}
-
-static void transmit_test() {
-	if (radio->transmitting()) { Serial.print("tx busy\r\n"); return; }
-	char msg[48];
-	int len = snprintf(msg, sizeof(msg), "Rrptr test %lu", (unsigned long)++tx_count);
-	board.led(true);
-	uint32_t toa_ms = radio->time_on_air_us(len) / 1000;
-	int16_t state = radio->start_transmit((const uint8_t*)msg, len);
-	if (state != RADIOLIB_ERR_NONE) {
-		board.led(false);
-		Serial.printf("tx failed: %d\r\n", state);
+		board.reset_reason(), board.battery_mv(), (unsigned long)(millis() / 1000));
+	if (!radio) {
+		Serial.printf("radio0 init failed: %d\r\n", radio_error);
 		return;
 	}
-	Serial.printf("tx %d bytes \"%s\", %lu ms on air\r\n", len, msg, (unsigned long)toa_ms);
+	const RadioConfig& c = radio->config();
+	Serial.printf("radio0 %s: %.3f MHz, %.1f kHz, SF%u, CR4/%u, %d dBm (max %d)\r\n",
+		radio->chip_name(), c.freq_hz / 1e6f, c.bandwidth_hz / 1e3f, c.sf, c.cr,
+		radio->applied_power_dbm(), radio->max_output_power(c.freq_hz));
+	if (RNS::Transport::identity()) {
+		Serial.printf("transport identity %s\r\n", RNS::Transport::identity().hash().toHex().c_str());
+		Serial.printf("probe destination  %s\r\n", RNS::Transport::probe_destination().hash().toHex().c_str());
+	}
+	if (lora) {
+		const LoRaInterface::Stats& s = lora->stats();
+		Serial.printf("lora: rx %lu packets / %lu frames, errors %lu, no-crc %lu, orphans %lu; "
+			"tx %lu packets, dropped %lu, airtime %lu ms, queued %lu\r\n",
+			s.rx_packets, s.rx_frames, s.rx_errors, s.rx_no_crc, s.rx_orphans,
+			s.tx_packets, s.tx_dropped, s.tx_airtime_ms, lora->queued());
+	}
 }
 
 static void handle_key(int key) {
 	switch (key) {
-	case 't': transmit_test(); break;
-	case 'n': Serial.printf("noise floor %.1f dBm\r\n", radio->current_rssi()); break;
-	case 'a': Serial.printf("AGC reset: %d\r\n", radio->reset_agc()); break;
 	case 's': report(); break;
+	case 'n': if (radio) Serial.printf("noise floor %.1f dBm\r\n", radio->current_rssi()); break;
+	case 'a': if (radio) Serial.printf("AGC reset: %d\r\n", radio->reset_agc()); break;
+	}
+}
+
+static void reticulum_setup() {
+	try {
+		filesystem.init();
+		RNS::Utilities::OS::register_filesystem(filesystem);
+
+		lora = new LoRaInterface(*radio, "LoRa0");
+		lora_interface = lora;
+		lora_interface.mode(RNS::Type::Interface::MODE_GATEWAY);
+		RNS::Transport::register_interface(lora_interface);
+		lora_interface.start();
+
+		reticulum = RNS::Reticulum();
+		reticulum.transport_enabled(true);
+		reticulum.probe_destination_enabled(true);
+		reticulum.remote_management_enabled(true);
+		reticulum.start();
+	}
+	catch (const std::exception& e) {
+		ERRORF("Reticulum setup failed: %s", e.what());
 	}
 }
 
 void setup() {
 	board.begin();
 	Serial.begin(115200);
+	RNS::loglevel(RNS::LOG_INFO);
 
 	radio = radio_create(0, board.radio_spi(0));
 	int16_t state = radio ? radio->begin(TEST_CONFIG) : RADIOLIB_ERR_UNSUPPORTED;
@@ -82,7 +104,9 @@ void setup() {
 	if (state != RADIOLIB_ERR_NONE) {
 		radio_error = state;
 		radio = nullptr;
+		return;
 	}
+	reticulum_setup();
 }
 
 // Prints the report whenever a serial monitor connects, so nothing from boot
@@ -92,7 +116,6 @@ static void check_monitor() {
 	bool now = (bool)Serial;
 	if (now && !connected) {
 		delay(100);  // let the host finish opening the port
-		if (radio_error != RADIOLIB_ERR_NONE) Serial.printf("radio0 init failed: %d\r\n", radio_error);
 		report();
 	}
 	connected = now;
@@ -100,25 +123,9 @@ static void check_monitor() {
 
 void loop() {
 	check_monitor();
+	while (Serial.available()) handle_key(Serial.read());
 	if (!radio) { board.idle(100); return; }
 
-	switch (radio->poll()) {
-	case Radio::EVENT_RX_DONE: {
-		uint8_t buf[256];
-		int16_t len = radio->read_packet(buf, sizeof(buf));
-		if (len >= 0) print_packet(buf, len);
-		else if (len == RADIO_ERR_NO_CRC) Serial.printf("rx dropped: header has no CRC, RSSI %.1f dBm\r\n", radio->packet_rssi());
-		else Serial.printf("rx error %d, RSSI %.1f dBm\r\n", len, radio->packet_rssi());
-		break;
-	}
-	case Radio::EVENT_TX_DONE:
-		board.led(false);
-		Serial.print("tx done\r\n");
-		break;
-	default:
-		break;
-	}
-
-	while (Serial.available()) handle_key(Serial.read());
-	board.idle(5);
+	reticulum.loop();  // also runs the LoRa interface
+	board.idle(2);
 }
