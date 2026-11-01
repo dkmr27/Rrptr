@@ -10,13 +10,12 @@
 #include <Adafruit_TinyUSB.h>
 #endif
 
-#include <microStore/FileSystem.h>
-#include <microStore/Adapters/InternalFSFileSystem.h>
 #include <microReticulum.h>
 
 #include "board/Board.h"
 #include "radio/Radio.h"
 #include "lora/LoRaInterface.h"
+#include "storage/Storage.h"
 
 // Fixed test settings until the settings store exists
 static const RadioConfig TEST_CONFIG = {
@@ -29,9 +28,6 @@ static const RadioConfig TEST_CONFIG = {
 	18,             // preamble symbols
 };
 
-// Internal flash for now; the W25Q128 comes with the storage step
-static microStore::FileSystem filesystem{microStore::Adapters::InternalFSFileSystem()};
-
 static Radio* radio = nullptr;
 static int16_t radio_error = RADIOLIB_ERR_NONE;
 static LoRaInterface* lora = nullptr;
@@ -42,6 +38,7 @@ static void report() {
 	Serial.printf("Rrptr %s (%s, %s) on %s, reset: %s, battery %u mV, up %lu s\r\n",
 		RRPTR_VERSION, RRPTR_GIT_HASH, RRPTR_BUILD_DATE, board.name(),
 		board.reset_reason(), board.battery_mv(), (unsigned long)(millis() / 1000));
+	Serial.printf("storage: %s\r\n", storage_description());
 	if (!radio) {
 		Serial.printf("radio0 init failed: %d\r\n", radio_error);
 		return;
@@ -73,8 +70,7 @@ static void handle_key(int key) {
 
 static void reticulum_setup() {
 	try {
-		filesystem.init();
-		RNS::Utilities::OS::register_filesystem(filesystem);
+		RNS::Utilities::OS::register_filesystem(storage_filesystem());
 
 		lora = new LoRaInterface(*radio, "LoRa0");
 		lora_interface = lora;
@@ -97,6 +93,10 @@ void setup() {
 	board.begin();
 	Serial.begin(115200);
 	RNS::loglevel(RNS::LOG_INFO);
+
+	// Without storage microReticulum cannot keep its identity or tables, so
+	// nothing else starts; loop() keeps reporting the error
+	if (!storage_begin()) return;
 
 	radio = radio_create(0, board.radio_spi(0));
 	int16_t state = radio ? radio->begin(TEST_CONFIG) : RADIOLIB_ERR_UNSUPPORTED;
@@ -121,7 +121,18 @@ static void check_monitor() {
 	connected = now;
 }
 
+// Storage failed at boot: repeat the error every 10 s, nothing else runs
+static void storage_failed() {
+	static uint32_t last = 0;
+	if (last == 0 || millis() - last >= 10000) {
+		last = millis();
+		Serial.printf("ERROR: storage: %s. Rrptr cannot run without it.\r\n", storage_error());
+	}
+	board.idle(100);
+}
+
 void loop() {
+	if (storage_error()) { storage_failed(); return; }
 	check_monitor();
 	while (Serial.available()) handle_key(Serial.read());
 	if (!radio) { board.idle(100); return; }
