@@ -42,4 +42,8 @@ Third-party code keeps its own licence:
 
 - `boards/bsp/` Arduino core variant files are LGPL-2.1, from the Adafruit
   nRF52 Arduino core templates.
+- `src/radio/` is ported from the radio HAL in
+  [openHop_modem](https://github.com/dkmr27/openhop_modem) (MIT), by the openHop_modem
+  project and its contributors; its notice is in
+  `licenses/openhop_modem.txt`.
 - microReticulum and microStore are Apache-2.0; RadioLib is MIT.

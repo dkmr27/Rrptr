@@ -19,7 +19,7 @@ public:
 	virtual void begin();
 	const char* name() const { return BOARD_NAME; }
 
-	// SPI bus for radio `index`, with its pins already assigned
+	// SPI bus for radio `index`, started and on the radio's pins
 	virtual SPIClass& radio_spi(uint8_t index) = 0;
 
 	// Battery voltage in mV, 0 if the board cannot measure it

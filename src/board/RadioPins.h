@@ -16,6 +16,23 @@
 	#error "board_config.h must define RADIO_COUNT"
 #endif
 
+// True if any fitted radio is `chip`, so unused drivers are not compiled
+#define RADIO_USES(chip) (RADIO0_CHIP == (chip) || (RADIO_COUNT > 1 && RADIO1_CHIP == (chip)))
+
+// Optional settings: 0 leaves the chip's default
+#ifndef RADIO0_CURRENT_LIMIT_MA
+	#define RADIO0_CURRENT_LIMIT_MA 0
+#endif
+#ifndef RADIO0_RX_BOOSTED_GAIN
+	#define RADIO0_RX_BOOSTED_GAIN 0
+#endif
+#ifndef RADIO1_CURRENT_LIMIT_MA
+	#define RADIO1_CURRENT_LIMIT_MA 0
+#endif
+#ifndef RADIO1_RX_BOOSTED_GAIN
+	#define RADIO1_RX_BOOSTED_GAIN 0
+#endif
+
 struct RadioPins {
 	uint8_t chip;               // RADIO_CHIP_*
 	int8_t  sck, miso, mosi;
@@ -24,6 +41,8 @@ struct RadioPins {
 	bool    dio2_rf_switch;
 	int8_t  rxen, txen;         // -1 = not used
 	int8_t  max_power_dbm;
+	uint8_t current_limit_ma;   // PA over-current limit, 0 = chip default
+	bool    rx_boosted_gain;
 };
 
 #define RADIO_PINS(n) { \
@@ -32,7 +51,8 @@ struct RadioPins {
 	RADIO##n##_CS, RADIO##n##_RESET, RADIO##n##_BUSY, RADIO##n##_DIO1, \
 	RADIO##n##_TCXO_VOLTS, RADIO##n##_DIO2_RF_SWITCH, \
 	RADIO##n##_RXEN, RADIO##n##_TXEN, \
-	RADIO##n##_MAX_POWER_DBM }
+	RADIO##n##_MAX_POWER_DBM, \
+	RADIO##n##_CURRENT_LIMIT_MA, RADIO##n##_RX_BOOSTED_GAIN }
 
 static const RadioPins radio_pins[RADIO_COUNT] = {
 	RADIO_PINS(0),

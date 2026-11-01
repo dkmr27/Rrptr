@@ -31,6 +31,10 @@ void NRF52Board::begin() {
 
 SPIClass& NRF52Board::radio_spi(uint8_t index) {
 	(void)index;
+	// RadioLib only starts its own default SPI; a bus handed to it must already
+	// be running, or the first transfer waits forever. begin() is a no-op once
+	// the bus is up.
+	radio0_spi.begin();
 	return radio0_spi;
 }
 
