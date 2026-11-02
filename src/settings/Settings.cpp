@@ -2,7 +2,7 @@
 
 #include <microReticulum/Provisioning/Provisioning.h>
 #include <microReticulum/Transport.h>
-#include <microReticulum/Log.h>
+#include "log/Log.h"
 
 #include "board/Board.h"
 #include "radio/Radio.h"
@@ -54,7 +54,8 @@ static SetterFn radio_setter(void (*store)(fint_t)) {
 
 // Commit hook for the radio namespace: build the config the drafts would give
 // and reject the whole change if the chip or board cannot do it, so a bad
-// combination never reaches the radio
+// combination never reaches the radio. TX power above the board's ceiling is
+// stored as the ceiling, so the saved value is the one actually used.
 static void radio_commit_check(Namespace& ns) {
 	RadioConfig c = radio0;
 	Value v;
@@ -67,10 +68,25 @@ static void radio_commit_check(Namespace& ns) {
 
 	if (c.freq_hz == 0) return;  // radio off: nothing to check
 	if (radio0_instance && !radio0_instance->config_supported(c)) {
-		WARNINGF("Settings: radio %lu Hz, %lu Hz BW, SF%u, CR%u, %d dBm not supported, change rejected",
+		R_WARNING("Settings: radio %lu Hz, %lu Hz BW, SF%u, CR%u, %d dBm not supported, change rejected",
 			(unsigned long)c.freq_hz, (unsigned long)c.bandwidth_hz, c.sf, c.cr, c.power_dbm);
 		ns.clear_draft();
+		return;
 	}
+	// A frequency change can lower the ceiling too, so check even without a power draft
+	int8_t ceiling = radio0_instance ? radio0_instance->max_output_power(c.freq_hz) : c.power_dbm;
+	if (c.power_dbm > ceiling) ns.set_draft(radio::TxPower, Value((int)ceiling));
+}
+
+void clamp_stored_power() {
+	if (!radio0_instance || radio0.freq_hz == 0) return;
+	int8_t ceiling = radio0_instance->max_output_power(radio0.freq_hz);
+	if (radio0.power_dbm <= ceiling) return;
+	R_INFO("Settings: stored TX power %d dBm is above this board's %d dBm, saving %d dBm",
+		radio0.power_dbm, ceiling, ceiling);
+	Provisioner& p = Provisioner::instance();
+	p.field(radio::Id0, radio::TxPower, Value((int)ceiling));
+	p.commit(radio::Id0);
 }
 
 void register_namespaces() {

@@ -89,6 +89,11 @@ namespace settings {
 	// Radio 0 instance, so radio changes can be validated against the chip
 	void attach_radio(Radio* radio);
 
+	// Rewrites a stored TX power above the board's ceiling as the ceiling
+	// (e.g. settings carried over from another board). Call once at boot after
+	// the settings are loaded and the radio is attached.
+	void clamp_stored_power();
+
 	// True once after the radio settings changed; the main loop then applies
 	// them (the provisioning engine wants setters to return quickly)
 	bool take_radio_changed();

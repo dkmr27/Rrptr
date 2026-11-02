@@ -1,7 +1,7 @@
 #include "lora/LoRaInterface.h"
 
 #include <microReticulum/Cryptography/Random.h>
-#include <microReticulum/Log.h>
+#include "log/Log.h"
 
 #include "board/Board.h"
 
@@ -96,6 +96,10 @@ void LoRaInterface::receive_frame() {
 
 void LoRaInterface::deliver(const uint8_t* data, size_t len, float rssi, float snr) {
 	_stats.rx_packets++;
+	// Reticulum header: flags, hops, 1 or 2 addresses (bit 6 of flags), context
+	size_t context_at = (data[0] & 0x40) ? 34 : 18;
+	R_DEBUG("LoRa: rx %u bytes, flags 0x%02x, context 0x%02x, RSSI %.1f, SNR %.2f", (unsigned)len,
+		data[0], len > context_at ? data[context_at] : 0, rssi, snr);
 	std::shared_ptr<RNS::InterfaceImpl> self = shared_from_this();
 	RNS::Interface iface(self);
 	iface.r_stat_rssi(rssi);
@@ -108,7 +112,7 @@ bool LoRaInterface::send_outgoing(const RNS::Bytes& data) {
 	if (!_online) return false;
 	if (data.size() == 0 || data.size() > HW_MTU || _tx_queue.size() >= TX_QUEUE_MAX) {
 		_stats.tx_dropped++;
-		WARNINGF("LoRa: dropped outgoing packet (%u bytes, %u queued)", data.size(), _tx_queue.size());
+		R_WARNING("LoRa: dropped outgoing packet (%u bytes, %u queued)", data.size(), _tx_queue.size());
 		return false;
 	}
 	_tx_queue.push_back(data);
@@ -139,7 +143,7 @@ void LoRaInterface::transmit_frame(const uint8_t* data, size_t len) {
 	_stats.tx_airtime_ms += _radio.time_on_air_us(1 + len) / 1000;
 	int16_t state = _radio.start_transmit(_tx_frame, 1 + len);
 	if (state != RADIOLIB_ERR_NONE) {
-		ERRORF("LoRa: transmit failed (%d)", state);
+		R_ERROR("LoRa: transmit failed (%d)", state);
 		_stats.tx_dropped++;
 		_tx_active = false;
 		board.tx_led(false);

@@ -1,7 +1,7 @@
 #include "storage/Storage.h"
 
 #include <Arduino.h>
-#include <microReticulum/Log.h>
+#include "log/Log.h"
 #include <microReticulum/Transport.h>
 
 #include "board_config.h"
@@ -25,7 +25,7 @@ bool storage_begin() {
 	filesystem = microStore::Adapters::FlashFSFileSystem(&device, BOARD_FLASH_CS);
 	if (!filesystem.init()) {
 		error = BOARD_FLASH_NAME " flash not found or not mountable, check its wiring and power";
-		ERRORF("Storage: %s", error);
+		R_ERROR("Storage: %s", error);
 		return false;
 	}
 	snprintf(description, sizeof(description), "%s %lu KB",
@@ -36,7 +36,7 @@ bool storage_begin() {
 	RNS::Transport::path_store_segment_size(24576);
 	RNS::Transport::path_store_segment_count(8);
 
-	INFOF("Storage: %s", description);
+	R_INFO("Storage: %s", description);
 	return true;
 #else
 	error = "no storage configured for this board";
