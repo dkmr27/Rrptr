@@ -96,6 +96,11 @@ protected:
 	virtual int16_t chip_read(uint8_t* buf, size_t len) = 0;
 	// Whether the header of the frame just read declared a payload CRC
 	virtual bool    chip_rx_header_has_crc() = 0;
+	// After a packet is read. A chip in continuous receive is still listening
+	// and may already be taking in the next frame, so restarting receive would
+	// cut that frame off; such chips override this to only reset their own
+	// state. Others restart receive.
+	virtual void    chip_continue_receive() { start_receive(); }
 	virtual float   chip_packet_rssi() = 0;
 	virtual float   chip_packet_snr() = 0;
 

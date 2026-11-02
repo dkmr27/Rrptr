@@ -115,6 +115,15 @@ bool SX1262Radio::chip_rx_header_has_crc() {
 	if (_chip.getLoRaRxHeaderInfo(nullptr, &has_crc) != RADIOLIB_ERR_NONE) return false;
 	return has_crc;
 }
+// The chip stays in receive after RX done (RX_TIMEOUT_INF), and readData()
+// reads from the buffer pointer the chip reports, so there is nothing to
+// restart. Restarting would go through standby and drop a frame that has
+// already started, e.g. the second of two packets sent back to back.
+void SX1262Radio::chip_continue_receive() {
+	_rx_activity_at = 0;
+	_rx_header_seen = false;
+}
+
 float   SX1262Radio::chip_packet_rssi() { return _chip.getRSSI(true); }
 float   SX1262Radio::chip_packet_snr() { return _chip.getSNR(); }
 float   SX1262Radio::current_rssi() { return _chip.getRSSI(false); }

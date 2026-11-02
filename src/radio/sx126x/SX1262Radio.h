@@ -28,6 +28,7 @@ protected:
 	size_t  chip_packet_length() override;
 	int16_t chip_read(uint8_t* buf, size_t len) override;
 	bool    chip_rx_header_has_crc() override;
+	void    chip_continue_receive() override;
 	float   chip_packet_rssi() override;
 	float   chip_packet_snr() override;
 

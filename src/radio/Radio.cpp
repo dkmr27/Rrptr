@@ -149,6 +149,6 @@ int16_t Radio::read_packet(uint8_t* buf, size_t max_len) {
 	if (state == RADIOLIB_ERR_NONE && !chip_rx_header_has_crc()) state = RADIO_ERR_NO_CRC;
 	_rssi = chip_packet_rssi();
 	_snr = chip_packet_snr();
-	start_receive();
+	chip_continue_receive();
 	return state == RADIOLIB_ERR_NONE ? (int16_t)len : state;
 }
