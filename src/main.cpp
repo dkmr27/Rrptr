@@ -18,6 +18,7 @@
 #include "settings/Settings.h"
 #include "cli/Cli.h"
 #include "log/Log.h"
+#include "console/Console.h"
 
 using RNS::Provisioning::Provisioner;
 
@@ -72,7 +73,7 @@ static void reticulum_setup() {
 
 void setup() {
 	board.begin();
-	Serial.begin(115200);
+	console.begin(115200);
 	rlog::begin();
 
 	// Without storage microReticulum cannot keep its identity or tables, so
@@ -106,17 +107,24 @@ void setup() {
 	cli::begin(radio, lora);
 }
 
+static void greet() {
+	console.printf("\r\nRrptr %s on %s, %s\r\n", RRPTR_VERSION, board.name(), settings::node_name().c_str());
+	if (!radio) console.printf("radio0 init failed (%d)\r\n", radio_error);
+	else if (settings::radio0.freq_hz == 0) console.print("radio not configured: set radio <MHz>,<kHz>,<SF>,<CR>[,<dBm>]\r\n");
+	console.print("type help for commands\r\n> ");
+}
+
 // Greets a serial monitor when it connects, so it sees the node's state even
-// when it attaches long after boot
+// when it attaches long after boot. A UART cannot tell when a terminal
+// attaches, so it is greeted once at start-up.
 static void check_monitor() {
 	static bool connected = false;
-	bool now = (bool)Serial;
+	static bool uart_greeted = false;
+	if (!uart_greeted && console.has_uart()) { uart_greeted = true; greet(); }
+	bool now = console.usb_connected();
 	if (now && !connected) {
 		delay(100);  // let the host finish opening the port
-		Serial.printf("\r\nRrptr %s on %s, %s\r\n", RRPTR_VERSION, board.name(), settings::node_name().c_str());
-		if (!radio) Serial.printf("radio0 init failed (%d)\r\n", radio_error);
-		else if (settings::radio0.freq_hz == 0) Serial.print("radio not configured: set radio <MHz>,<kHz>,<SF>,<CR>[,<dBm>]\r\n");
-		Serial.print("type help for commands\r\n> ");
+		greet();
 	}
 	connected = now;
 }
@@ -126,7 +134,7 @@ static void storage_failed() {
 	static uint32_t last = 0;
 	if (last == 0 || millis() - last >= 10000) {
 		last = millis();
-		Serial.printf("ERROR: storage: %s. Rrptr cannot run without it.\r\n", storage_error());
+		console.printf("ERROR: storage: %s. Rrptr cannot run without it.\r\n", storage_error());
 	}
 	board.idle(100);
 }

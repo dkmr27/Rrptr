@@ -18,6 +18,7 @@
 #include "settings/Settings.h"
 #include "storage/Storage.h"
 #include "log/Log.h"
+#include "console/Console.h"
 
 using RNS::Provisioning::Provisioner;
 using RNS::Provisioning::Value;
@@ -47,11 +48,11 @@ static void reply(const char* fmt, ...) {
 	va_start(args, fmt);
 	vsnprintf(buf, sizeof(buf), fmt, args);
 	va_end(args);
-	Serial.print(buf);
-	Serial.print("\r\n");
+	console.print(buf);
+	console.print("\r\n");
 }
 
-static void prompt() { Serial.print("> "); }
+static void prompt() { console.print("> "); }
 
 static bool commit(uint16_t ns) {
 	if (Provisioner::instance().commit(ns)) return true;
@@ -344,7 +345,7 @@ static void cmd_erase(char* arg) {
 	}
 	if (!erase_armed) { reply("Type 'erase' first"); return; }
 	reply("Erasing storage and rebooting...");
-	Serial.flush();
+	console.flush();
 	storage_filesystem().format();
 	delay(100);
 	board.reboot();
@@ -389,7 +390,7 @@ static void run(char* text) {
 	else if (!strcmp(cmd, "set")) cmd_set(arg1, arg2);
 	else if (!strcmp(cmd, "get")) cmd_get(arg1);
 	else if (!strcmp(cmd, "log")) cmd_log(arg1);
-	else if (!strcmp(cmd, "reboot")) { reply("Rebooting..."); Serial.flush(); delay(100); board.reboot(); }
+	else if (!strcmp(cmd, "reboot")) { reply("Rebooting..."); console.flush(); delay(100); board.reboot(); }
 	else if (!strcmp(cmd, "erase")) cmd_erase(arg1);
 	else if (!strcmp(cmd, "ota")) reply("Not implemented yet");
 	else if (!strcmp(cmd, "help") || !strcmp(cmd, "?")) cmd_help();
@@ -397,20 +398,20 @@ static void run(char* text) {
 }
 
 void poll() {
-	while (Serial.available()) {
-		int c = Serial.read();
+	while (console.available()) {
+		int c = console.read();
 		if (c == '\r' || c == '\n') {
-			if (line_len == 0) { if (c == '\r') { Serial.print("\r\n"); prompt(); } continue; }
-			Serial.print("\r\n");
+			if (line_len == 0) { if (c == '\r') { console.print("\r\n"); prompt(); } continue; }
+			console.print("\r\n");
 			line[line_len] = 0;
 			run(line);
 			line_len = 0;
 			prompt();
 		} else if (c == 8 || c == 127) {
-			if (line_len > 0) { line_len--; Serial.print("\b \b"); }
+			if (line_len > 0) { line_len--; console.print("\b \b"); }
 		} else if (c >= 32 && c < 127 && line_len < LINE_MAX) {
 			line[line_len++] = (char)c;
-			Serial.write((char)c);
+			console.write((char)c);
 		}
 	}
 }

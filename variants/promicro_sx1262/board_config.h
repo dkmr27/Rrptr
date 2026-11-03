@@ -13,6 +13,11 @@
 #define BOARD_LED_ACTIVE_HIGH 1
 #define BOARD_BUTTON          -1        // none fitted
 
+// Serial console on UART pins, alongside USB (e.g. for power measurements
+// with USB unplugged). -1 = none.
+#define BOARD_UART_RX         8         // P0.08 / D1
+#define BOARD_UART_TX         6         // P0.06 / D0
+
 // Switched 3V3 rail for radio and flash
 #define BOARD_RAIL_EN         13        // P0.13, high = on
 

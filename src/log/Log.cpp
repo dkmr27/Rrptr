@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <stdarg.h>
 
+#include "console/Console.h"
+
 namespace rlog {
 
 #if defined(RRPTR_DEBUG_LOG)
@@ -14,9 +16,7 @@ static Mode current = OFF;
 #endif
 
 static void print_line(const char* source, RNS::LogLevel level, const char* msg) {
-	// Writing to a USB serial port with no host attached just drops the data
-	if (!Serial) return;
-	Serial.printf("%s [%s] %s: %s\r\n", RNS::getTimeString(), RNS::getLevelName(level), source, msg);
+	console.printf("%s [%s] %s: %s\r\n", RNS::getTimeString(), RNS::getLevelName(level), source, msg);
 }
 
 static void on_library_log(const char* msg, RNS::LogLevel level) {
@@ -29,7 +29,7 @@ void begin() {
 #if defined(RRPTR_DEBUG_LOG)
 	// Give a serial monitor time to attach so the start-up messages are seen
 	uint32_t start = millis();
-	while (!Serial && millis() - start < 5000) delay(10);
+	while (!console.usb_connected() && millis() - start < 5000) delay(10);
 	delay(100);
 #endif
 }

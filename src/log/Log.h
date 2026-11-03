@@ -23,7 +23,7 @@
 namespace rlog {
 	enum Mode : uint8_t { OFF = 0, ON = 1, BOTH = 2 };
 
-	// Call after Serial.begin()
+	// Call after console.begin()
 	void begin();
 	void set_mode(Mode mode);
 	Mode mode();
