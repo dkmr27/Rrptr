@@ -17,6 +17,7 @@ namespace cli {
 	// Reads and runs whatever has arrived on the serial port; call from loop()
 	void poll();
 
-	// Main loop idle time per pass in ms; `test idle` changes it (debug builds)
+	// Longest main loop idle per pass in ms; the radio interrupt ends it early.
+	// `test idle` changes it (debug builds).
 	extern uint32_t loop_idle_ms;
 }

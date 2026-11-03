@@ -1,4 +1,5 @@
 #include "radio/Radio.h"
+#include "board/Board.h"
 
 #if RADIO_USES(RADIO_CHIP_SX1262)
 #include "radio/sx126x/SX1262Radio.h"
@@ -6,11 +7,12 @@
 
 // ─── Interrupts ─────────────────────────────────────────────
 // RadioLib takes a plain function for DIO1, so each radio slot gets its own.
+// Each also wakes the main loop so RX/TX done is handled straight away.
 static volatile bool irq_flag[RADIO_COUNT];
 
-static void radio0_irq() { irq_flag[0] = true; }
+static void radio0_irq() { irq_flag[0] = true; board.wake(); }
 #if RADIO_COUNT > 1
-static void radio1_irq() { irq_flag[1] = true; }
+static void radio1_irq() { irq_flag[1] = true; board.wake(); }
 #endif
 
 void (*Radio::irq_handler() const)(void) {

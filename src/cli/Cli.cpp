@@ -29,7 +29,7 @@ namespace cli {
 static const size_t LINE_MAX = 128;
 static const size_t ADMIN_MAX = 32;     // the library's limit for the allowed list
 
-uint32_t loop_idle_ms = 2;
+uint32_t loop_idle_ms = 50;
 
 static Radio* radio = nullptr;
 static LoRaInterface* lora = nullptr;
@@ -299,13 +299,6 @@ static void cmd_set(char* what, char* arg) {
 		return;
 	}
 
-	if (!strcmp(what, "sleep")) {
-		bool on;
-		if (!parse_on_off(arg, on)) { reply("Error: set sleep on|off"); return; }
-		if (Provisioner::instance().field(node::Id, node::IdleSleep, Value(on)) && commit(node::Id)) reply("OK");
-		return;
-	}
-
 	if (!strcmp(what, "rxgain")) {
 		bool on;
 		if (!parse_on_off(arg, on)) { reply("Error: set rxgain on|off"); return; }
@@ -331,7 +324,6 @@ static void cmd_get(char* what) {
 	if (!strcmp(what, "id"))       { cmd_get_id(); return; }
 	if (!strcmp(what, "name"))     { reply("%s", node_name().c_str()); return; }
 	if (!strcmp(what, "agcreset")) { if (agc_reset_minutes) reply("%u min", agc_reset_minutes); else reply("off"); return; }
-	if (!strcmp(what, "sleep"))    { reply("%s", idle_sleep ? "on" : "off"); return; }
 	if (!strcmp(what, "led"))      { reply("%s", led_mode == LED_TX ? "tx" : "off"); return; }
 	if (!strcmp(what, "rxgain"))   { reply("%s", radio0.rx_boosted_gain ? "on" : "off"); return; }
 	reply("Error: unknown setting '%s' (type help)", what);
@@ -365,7 +357,8 @@ static void cmd_erase(char* arg) {
 // Test commands for power measurements; not saved, a reboot undoes them.
 //   test radio rx|standby|sleep   put the radio in that state (LoRa offline
 //                                 unless rx)
-//   test idle <ms>                main loop idle time per pass (default 2)
+//   test idle <ms>                longest main loop idle per pass (default 50)
+//   test uart off                 switch the console UART off (USB stays)
 static void cmd_test(char* what, char* arg) {
 	if (what && !strcmp(what, "radio") && arg) {
 		if (!radio || !lora) { reply("Error: no radio"); return; }
@@ -392,7 +385,13 @@ static void cmd_test(char* what, char* arg) {
 		reply("OK");
 		return;
 	}
-	reply("Error: test radio rx|standby|sleep | test idle <ms>");
+	if (what && !strcmp(what, "uart") && arg && !strcmp(arg, "off")) {
+		if (!console.has_uart()) { reply("UART already off"); return; }
+		reply("UART off until reboot");
+		console.end_uart();
+		return;
+	}
+	reply("Error: test radio rx|standby|sleep | idle <ms> | uart off");
 }
 #endif
 
@@ -408,7 +407,6 @@ static void cmd_help() {
 	reply("set|get tx <dBm>            chip output power");
 	reply("set|get name <name>         node name");
 	reply("set|get agcreset <min>|off  AGC reset interval");
-	reply("set|get sleep on|off        MCU idle sleep");
 	reply("set|get led off|tx          LED on transmit");
 	reply("set|get rxgain on|off       RX boosted gain (better sensitivity, more current)");
 	reply("get radio                   radio settings");
@@ -419,7 +417,8 @@ static void cmd_help() {
 	reply("ota                         firmware update (not implemented yet)");
 #if defined(RRPTR_DEBUG_LOG)
 	reply("test radio rx|standby|sleep power test: radio state (until reboot)");
-	reply("test idle <ms>              power test: main loop idle per pass (default 2)");
+	reply("test idle <ms>              power test: longest main loop idle (default 50)");
+	reply("test uart off               power test: console UART off (until reboot)");
 #endif
 }
 

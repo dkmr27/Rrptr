@@ -33,8 +33,10 @@ public:
 	void set_tx_led(bool enabled) { _tx_led_enabled = enabled; if (!enabled) led(false); }
 	bool button_pressed();
 
-	// Sleep until an event or `max_ms` has passed
+	// Sleep until wake() is called or `max_ms` has passed
 	virtual void idle(uint32_t max_ms) = 0;
+	// Ends the current or next idle() early; safe to call from an interrupt
+	virtual void wake() = 0;
 
 	virtual void reboot() = 0;
 	// Reboot into the bootloader's OTA update mode, if supported

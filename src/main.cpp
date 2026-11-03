@@ -156,5 +156,8 @@ void loop() {
 	}
 
 	reticulum.loop();  // also runs the LoRa interface
-	board.idle(cli::loop_idle_ms);
+
+	// Sleep until the radio interrupts or the idle time is up. Packets waiting
+	// to go out (e.g. held off by listen-before-talk) are retried every 2 ms.
+	board.idle(lora && lora->queued() ? 2 : cli::loop_idle_ms);
 }

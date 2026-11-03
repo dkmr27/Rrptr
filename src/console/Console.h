@@ -16,6 +16,9 @@ public:
 	// A host has the USB port open
 	bool usb_connected();
 	bool has_uart() const;
+	// Switches the UART off until reboot (its receiver keeps the high-speed
+	// clock running, about 0.9 mA on nRF52)
+	void end_uart();
 
 	int available();
 	int read();
@@ -23,6 +26,9 @@ public:
 
 	size_t write(uint8_t c) override;
 	size_t write(const uint8_t* buf, size_t len) override;
+
+private:
+	bool _uart_on = false;
 };
 
 extern Console console;

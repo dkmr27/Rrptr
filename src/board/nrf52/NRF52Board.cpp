@@ -7,6 +7,10 @@
 // only while Wire1 is unused).
 static SPIClass radio0_spi(NRF_SPIM2, RADIO0_MISO, RADIO0_SCK, RADIO0_MOSI);
 
+// Given by wake(), taken by idle(). A wake that comes before idle() is kept,
+// so an interrupt just before the loop goes idle is not missed.
+static SemaphoreHandle_t wake_sem = nullptr;
+
 #if !defined(RRPTR_CUSTOM_BOARD)
 static NRF52Board nrf52_board;
 Board& board = nrf52_board;
@@ -14,6 +18,7 @@ Board& board = nrf52_board;
 
 void NRF52Board::begin() {
 	Board::begin();
+	wake_sem = xSemaphoreCreateBinary();
 
 #if BOARD_HAS_EXT_FLASH
 	// Keep the flash deselected until storage takes over
@@ -50,8 +55,20 @@ uint16_t NRF52Board::battery_mv() {
 }
 
 void NRF52Board::idle(uint32_t max_ms) {
-	// delay() blocks in FreeRTOS, whose idle task puts the CPU to sleep
-	delay(max_ms);
+	// Blocking in FreeRTOS lets its idle task put the CPU to sleep
+	if (!wake_sem) { delay(max_ms); return; }
+	xSemaphoreTake(wake_sem, pdMS_TO_TICKS(max_ms));
+}
+
+void NRF52Board::wake() {
+	if (!wake_sem) return;
+	if (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) {  // in an interrupt handler
+		BaseType_t woken = pdFALSE;
+		xSemaphoreGiveFromISR(wake_sem, &woken);
+		portYIELD_FROM_ISR(woken);
+	} else {
+		xSemaphoreGive(wake_sem);
+	}
 }
 
 void NRF52Board::reboot() {

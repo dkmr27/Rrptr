@@ -14,7 +14,6 @@ namespace settings {
 
 std::string name;
 uint8_t led_mode = LED_TX;
-bool idle_sleep = true;
 RadioConfig radio0 = {
 	RRPTR_DEFAULT_FREQ_HZ, RRPTR_DEFAULT_BW_HZ, RRPTR_DEFAULT_SF, RRPTR_DEFAULT_CR,
 	RRPTR_DEFAULT_TX_DBM, 0x12, RRPTR_DEFAULT_PREAMBLE, RADIO0_RX_BOOSTED_GAIN,
@@ -101,9 +100,6 @@ void register_namespaces() {
 			{ LED_OFF, LED_TX }, { "off", "tx" },
 			[](const Value& v) { led_mode = v.as_int(); board.set_tx_led(led_mode == LED_TX); return true; },
 			[]() { return (fenum_t)led_mode; })
-		.field_bool("Idle Sleep", node::IdleSleep, FF_LIVE_APPLY, true,
-			[](const Value& v) { idle_sleep = v.as_bool(); return true; },
-			[]() { return idle_sleep; })
 		.end();
 
 	p.register_namespace("Rrptr Radio 0", radio::Id0)

@@ -45,7 +45,7 @@ namespace settings {
 		constexpr uint16_t Id = 200;
 		constexpr uint16_t Name      = 1;
 		constexpr uint16_t LedMode   = 2;
-		constexpr uint16_t IdleSleep = 3;
+		// 3: retired (Idle Sleep); do not reuse
 		// next-id: 4
 	}
 	namespace radio {
@@ -73,7 +73,6 @@ namespace settings {
 	// The node's name, or empty to use the default from node_name()
 	extern std::string name;
 	extern uint8_t led_mode;
-	extern bool idle_sleep;
 	// Radio 0 settings; freq_hz 0 = not configured
 	extern RadioConfig radio0;
 	extern uint16_t agc_reset_minutes;
