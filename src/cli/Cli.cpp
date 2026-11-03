@@ -26,14 +26,14 @@ namespace GeneralConfig = RNS::Provisioning::Ns::GeneralConfig;
 
 namespace cli {
 
-static const size_t LINE_MAX = 128;
+static const size_t CLI_LINE_MAX = 128;
 static const size_t ADMIN_MAX = 32;     // the library's limit for the allowed list
 
 uint32_t loop_idle_ms = 50;
 
 static Radio* radio = nullptr;
 static LoRaInterface* lora = nullptr;
-static char line[LINE_MAX + 1];
+static char line[CLI_LINE_MAX + 1];
 static size_t line_len = 0;
 static bool erase_armed = false;
 
@@ -359,6 +359,8 @@ static void cmd_erase(char* arg) {
 //                                 unless rx)
 //   test idle <ms>                longest main loop idle per pass (default 50)
 //   test uart off                 switch the console UART off (USB stays)
+//   test tx nocrc                 send one frame without a payload CRC
+//                                 (only with -DRRPTR_TEST_NOCRC)
 static void cmd_test(char* what, char* arg) {
 	if (what && !strcmp(what, "radio") && arg) {
 		if (!radio || !lora) { reply("Error: no radio"); return; }
@@ -385,6 +387,23 @@ static void cmd_test(char* what, char* arg) {
 		reply("OK");
 		return;
 	}
+#if defined(RRPTR_TEST_NOCRC)
+	// One RNode-format frame sent without a payload CRC; a receiving Rrptr
+	// should drop it and count it under no-crc in stats. Verified 2026-11-03;
+	// kept for future checks, build with -DRRPTR_TEST_NOCRC to enable.
+	if (what && !strcmp(what, "tx") && arg && !strcmp(arg, "nocrc")) {
+		if (!radio || !lora || !lora->online()) { reply("Error: radio off"); return; }
+		uint8_t frame[24];
+		frame[0] = random(16) << 4;  // RNode header: random sequence, not split
+		const char* text = "Rrptr no-CRC test";
+		size_t n = strlen(text);
+		memcpy(frame + 1, text, n);
+		int16_t state = radio->test_transmit_no_crc(frame, n + 1);
+		if (state == RADIOLIB_ERR_NONE) reply("OK, sent %u bytes without CRC", (unsigned)(n + 1));
+		else reply("Error: radio %d", state);
+		return;
+	}
+#endif
 	if (what && !strcmp(what, "uart") && arg && !strcmp(arg, "off")) {
 		if (!console.has_uart()) { reply("UART already off"); return; }
 		reply("UART off until reboot");
@@ -419,6 +438,9 @@ static void cmd_help() {
 	reply("test radio rx|standby|sleep power test: radio state (until reboot)");
 	reply("test idle <ms>              power test: longest main loop idle (default 50)");
 	reply("test uart off               power test: console UART off (until reboot)");
+#if defined(RRPTR_TEST_NOCRC)
+	reply("test tx nocrc               send one frame without CRC (receivers drop it)");
+#endif
 #endif
 }
 
@@ -461,7 +483,7 @@ void poll() {
 			prompt();
 		} else if (c == 8 || c == 127) {
 			if (line_len > 0) { line_len--; console.print("\b \b"); }
-		} else if (c >= 32 && c < 127 && line_len < LINE_MAX) {
+		} else if (c >= 32 && c < 127 && line_len < CLI_LINE_MAX) {
 			line[line_len++] = (char)c;
 			console.write((char)c);
 		}

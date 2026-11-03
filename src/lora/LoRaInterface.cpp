@@ -54,8 +54,15 @@ void LoRaInterface::receive_frame() {
 	uint8_t frame[1 + FRAME_PAYLOAD + 1];
 	int16_t len = _radio.read_packet(frame, sizeof(frame));
 	if (len < 0) {
-		if (len == RADIO_ERR_NO_CRC) _stats.rx_no_crc++;
-		else _stats.rx_errors++;
+		if (len == RADIO_ERR_NO_CRC) {
+			_stats.rx_no_crc++;
+#if defined(RRPTR_TEST_NOCRC)
+			R_DEBUG("LoRa: dropped frame without CRC, RSSI %.1f, SNR %.2f", _radio.packet_rssi(), _radio.packet_snr());
+#endif
+		} else {
+			_stats.rx_errors++;
+			R_DEBUG("LoRa: rx error %d, RSSI %.1f, SNR %.2f", len, _radio.packet_rssi(), _radio.packet_snr());
+		}
 		return;
 	}
 	_stats.rx_frames++;

@@ -11,6 +11,9 @@
 		#error "nRF52 boards need external flash: internal flash (28 KB) is too small for microReticulum"
 	#endif
 	#include <microStore/Adapters/FlashFSFileSystem.h>
+#elif defined(RRPTR_MCU_ESP32)
+	#include <LittleFS.h>
+	#include <microStore/Adapters/PosixFileSystem.h>
 #endif
 
 static microStore::FileSystem filesystem;
@@ -32,6 +35,26 @@ bool storage_begin() {
 		BOARD_FLASH_NAME, (unsigned long)(device.total_size / 1024));
 
 	// Far more room than the compiled-in defaults assume: keep a larger path table
+	RNS::Transport::path_table_maxsize(500);
+	RNS::Transport::path_store_segment_size(24576);
+	RNS::Transport::path_store_segment_count(8);
+
+	R_INFO("Storage: %s", description);
+	return true;
+#elif defined(RRPTR_MCU_ESP32)
+	// LittleFS on the MCU's own flash, in the partition table's data partition.
+	// The POSIX adapter mounts it at an empty base path, making it the default
+	// file system, so microReticulum's relative paths ("./config") work; the
+	// Arduino LittleFS API would need every path to start with "/".
+	filesystem = microStore::Adapters::PosixFileSystem();
+	if (!filesystem.init()) {
+		error = "internal flash file system could not be mounted";
+		R_ERROR("Storage: %s", error);
+		return false;
+	}
+	snprintf(description, sizeof(description), "LittleFS %lu KB",
+		(unsigned long)(LittleFS.totalBytes() / 1024));
+
 	RNS::Transport::path_table_maxsize(500);
 	RNS::Transport::path_store_segment_size(24576);
 	RNS::Transport::path_store_segment_count(8);

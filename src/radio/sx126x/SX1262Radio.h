@@ -16,6 +16,9 @@ public:
 	int16_t  reset_agc() override;
 	int16_t  standby() override;
 	int16_t  sleep() override;
+#if defined(RRPTR_TEST_NOCRC)
+	int16_t  test_transmit_no_crc(const uint8_t* data, size_t len) override;
+#endif
 
 protected:
 	bool    accepts_bandwidth(RadioBand band, uint32_t bw_hz) const override;

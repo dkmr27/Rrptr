@@ -35,8 +35,10 @@ public:
 
 	// Sleep until wake() is called or `max_ms` has passed
 	virtual void idle(uint32_t max_ms) = 0;
-	// Ends the current or next idle() early; safe to call from an interrupt
-	virtual void wake() = 0;
+	// Ends the current or next idle() early; safe to call from an interrupt.
+	// Not virtual: on ESP32 it runs from IRAM while the flash cache may be off,
+	// so it must not go through a vtable in flash. Each MCU file defines it.
+	void wake();
 
 	virtual void reboot() = 0;
 	// Reboot into the bootloader's OTA update mode, if supported

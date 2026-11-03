@@ -66,6 +66,17 @@ bool SX1262Radio::accepts_bandwidth(RadioBand band, uint32_t bw_hz) const {
 int16_t SX1262Radio::standby() { return _chip.standby(); }
 int16_t SX1262Radio::sleep() { return _chip.sleep(true); }  // warm sleep
 
+#if defined(RRPTR_TEST_NOCRC)
+int16_t SX1262Radio::test_transmit_no_crc(const uint8_t* data, size_t len) {
+	int16_t state = standby();
+	if (state == RADIOLIB_ERR_NONE) state = _chip.setCRC(0);
+	if (state == RADIOLIB_ERR_NONE) state = _chip.transmit(data, len);
+	_chip.setCRC(2);
+	start_receive();  // also clears the TX done interrupt flag
+	return state;
+}
+#endif
+
 int16_t SX1262Radio::chip_set_frequency(uint32_t freq_hz) {
 	return _chip.setFrequency(freq_hz / 1e6f);
 }

@@ -8,11 +8,19 @@
 // ─── Interrupts ─────────────────────────────────────────────
 // RadioLib takes a plain function for DIO1, so each radio slot gets its own.
 // Each also wakes the main loop so RX/TX done is handled straight away.
+// On ESP32 GPIO interrupts run from IRAM, also while the flash cache is off
+// (e.g. during file system writes), so the handlers must live in IRAM too.
+#if defined(RRPTR_MCU_ESP32)
+	#define RADIO_ISR IRAM_ATTR
+#else
+	#define RADIO_ISR
+#endif
+
 static volatile bool irq_flag[RADIO_COUNT];
 
-static void radio0_irq() { irq_flag[0] = true; board.wake(); }
+static void RADIO_ISR radio0_irq() { irq_flag[0] = true; board.wake(); }
 #if RADIO_COUNT > 1
-static void radio1_irq() { irq_flag[1] = true; board.wake(); }
+static void RADIO_ISR radio1_irq() { irq_flag[1] = true; board.wake(); }
 #endif
 
 void (*Radio::irq_handler() const)(void) {

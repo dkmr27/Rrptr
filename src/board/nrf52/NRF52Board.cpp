@@ -60,7 +60,7 @@ void NRF52Board::idle(uint32_t max_ms) {
 	xSemaphoreTake(wake_sem, pdMS_TO_TICKS(max_ms));
 }
 
-void NRF52Board::wake() {
+void Board::wake() {
 	if (!wake_sem) return;
 	if (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) {  // in an interrupt handler
 		BaseType_t woken = pdFALSE;

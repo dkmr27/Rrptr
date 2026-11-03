@@ -83,6 +83,11 @@ public:
 	virtual int16_t  standby() = 0;
 	// Lowest-power state that keeps the configuration; standby() wakes it
 	virtual int16_t  sleep() = 0;
+#if defined(RRPTR_TEST_NOCRC)
+	// Test only: sends one frame with the payload CRC off and waits for it to
+	// go out, then restores CRC and receive
+	virtual int16_t  test_transmit_no_crc(const uint8_t* data, size_t len) = 0;
+#endif
 
 protected:
 	// ─── Chip hooks ─────────────────────────────────────────
