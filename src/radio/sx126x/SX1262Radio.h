@@ -15,6 +15,7 @@ public:
 	bool     receiving_packet() override;
 	int16_t  reset_agc() override;
 	int16_t  standby() override;
+	int16_t  sleep() override;
 
 protected:
 	bool    accepts_bandwidth(RadioBand band, uint32_t bw_hz) const override;

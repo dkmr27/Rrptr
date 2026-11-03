@@ -81,6 +81,8 @@ public:
 	// Warm-sleep AGC recalibration; the radio is put back in receive
 	virtual int16_t  reset_agc() = 0;
 	virtual int16_t  standby() = 0;
+	// Lowest-power state that keeps the configuration; standby() wakes it
+	virtual int16_t  sleep() = 0;
 
 protected:
 	// ─── Chip hooks ─────────────────────────────────────────

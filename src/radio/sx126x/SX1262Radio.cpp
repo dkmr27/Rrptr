@@ -37,10 +37,6 @@ int16_t SX1262Radio::begin(const RadioConfig& c) {
 		_chip.setRfSwitchPins(_pins.rxen >= 0 ? (uint32_t)_pins.rxen : RADIOLIB_NC,
 		                      _pins.txen >= 0 ? (uint32_t)_pins.txen : RADIOLIB_NC);
 	}
-	if (_pins.rx_boosted_gain) {
-		state = _chip.setRxBoostedGainMode(true);
-		if (state != RADIOLIB_ERR_NONE) return state;
-	}
 	_chip.setDio1Action(irq_handler());
 
 	return configure(c);
@@ -68,6 +64,7 @@ bool SX1262Radio::accepts_bandwidth(RadioBand band, uint32_t bw_hz) const {
 
 // ─── Configuration ──────────────────────────────────────────
 int16_t SX1262Radio::standby() { return _chip.standby(); }
+int16_t SX1262Radio::sleep() { return _chip.sleep(true); }  // warm sleep
 
 int16_t SX1262Radio::chip_set_frequency(uint32_t freq_hz) {
 	return _chip.setFrequency(freq_hz / 1e6f);
@@ -87,6 +84,7 @@ int16_t SX1262Radio::chip_set_modem(const RadioConfig& c) {
 	if ((state = _chip.setSyncWord(c.sync_word)) != RADIOLIB_ERR_NONE) return state;
 	if ((state = _chip.setPreambleLength(c.preamble_len)) != RADIOLIB_ERR_NONE) return state;
 	if ((state = _chip.explicitHeader()) != RADIOLIB_ERR_NONE) return state;
+	if ((state = _chip.setRxBoostedGainMode(c.rx_boosted_gain)) != RADIOLIB_ERR_NONE) return state;
 	return _chip.setCRC(2);
 }
 

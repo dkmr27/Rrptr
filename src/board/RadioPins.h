@@ -42,7 +42,7 @@ struct RadioPins {
 	int8_t  rxen, txen;         // -1 = not used
 	int8_t  max_power_dbm;
 	uint8_t current_limit_ma;   // PA over-current limit, 0 = chip default
-	bool    rx_boosted_gain;
+	bool    rx_boosted_gain;   // default for the RX boosted gain setting
 };
 
 #define RADIO_PINS(n) { \

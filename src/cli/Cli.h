@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <stdint.h>
+
 class Radio;
 class LoRaInterface;
 
@@ -14,4 +16,7 @@ namespace cli {
 	void begin(Radio* radio, LoRaInterface* lora);
 	// Reads and runs whatever has arrived on the serial port; call from loop()
 	void poll();
+
+	// Main loop idle time per pass in ms; `test idle` changes it (debug builds)
+	extern uint32_t loop_idle_ms;
 }

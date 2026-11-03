@@ -51,4 +51,4 @@
 #define RADIO0_TXEN           -1        // driven by DIO2
 #define RADIO0_MAX_POWER_DBM  22        // chip power ceiling
 #define RADIO0_CURRENT_LIMIT_MA 140     // PA over-current limit needed for 22 dBm
-#define RADIO0_RX_BOOSTED_GAIN  1       // about 3 dB better sensitivity, ~2 mA more in RX
+#define RADIO0_RX_BOOSTED_GAIN  1       // default for `rxgain`: ~3 dB better sensitivity, 0.45 mA more in RX (measured)

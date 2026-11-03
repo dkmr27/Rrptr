@@ -57,7 +57,8 @@ namespace settings {
 		constexpr uint16_t TxPower = 5;
 		constexpr uint16_t AgcResetMinutes = 6;
 		constexpr uint16_t Preamble = 7;
-		// next-id: 8
+		constexpr uint16_t RxBoostedGain = 8;
+		// next-id: 9
 	}
 	namespace power {
 		constexpr uint16_t Id = 210;

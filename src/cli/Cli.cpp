@@ -29,6 +29,8 @@ namespace cli {
 static const size_t LINE_MAX = 128;
 static const size_t ADMIN_MAX = 32;     // the library's limit for the allowed list
 
+uint32_t loop_idle_ms = 2;
+
 static Radio* radio = nullptr;
 static LoRaInterface* lora = nullptr;
 static char line[LINE_MAX + 1];
@@ -304,6 +306,13 @@ static void cmd_set(char* what, char* arg) {
 		return;
 	}
 
+	if (!strcmp(what, "rxgain")) {
+		bool on;
+		if (!parse_on_off(arg, on)) { reply("Error: set rxgain on|off"); return; }
+		if (Provisioner::instance().field(radio::Id0, radio::RxBoostedGain, Value(on)) && commit(radio::Id0)) reply("OK");
+		return;
+	}
+
 	if (!strcmp(what, "led")) {
 		int mode = (arg && !strcmp(arg, "tx")) ? LED_TX : (arg && !strcmp(arg, "off")) ? LED_OFF : -1;
 		if (mode < 0) { reply("Error: set led off|tx"); return; }
@@ -324,6 +333,7 @@ static void cmd_get(char* what) {
 	if (!strcmp(what, "agcreset")) { if (agc_reset_minutes) reply("%u min", agc_reset_minutes); else reply("off"); return; }
 	if (!strcmp(what, "sleep"))    { reply("%s", idle_sleep ? "on" : "off"); return; }
 	if (!strcmp(what, "led"))      { reply("%s", led_mode == LED_TX ? "tx" : "off"); return; }
+	if (!strcmp(what, "rxgain"))   { reply("%s", radio0.rx_boosted_gain ? "on" : "off"); return; }
 	reply("Error: unknown setting '%s' (type help)", what);
 }
 
@@ -351,6 +361,41 @@ static void cmd_erase(char* arg) {
 	board.reboot();
 }
 
+#if defined(RRPTR_DEBUG_LOG)
+// Test commands for power measurements; not saved, a reboot undoes them.
+//   test radio rx|standby|sleep   put the radio in that state (LoRa offline
+//                                 unless rx)
+//   test idle <ms>                main loop idle time per pass (default 2)
+static void cmd_test(char* what, char* arg) {
+	if (what && !strcmp(what, "radio") && arg) {
+		if (!radio || !lora) { reply("Error: no radio"); return; }
+		int16_t state;
+		if (!strcmp(arg, "rx")) {
+			state = radio->standby();
+			if (state == RADIOLIB_ERR_NONE) state = radio->start_receive();
+			if (state == RADIOLIB_ERR_NONE) lora->set_online(settings::radio0.freq_hz != 0);
+		} else if (!strcmp(arg, "standby") || !strcmp(arg, "sleep")) {
+			lora->set_online(false);
+			state = !strcmp(arg, "sleep") ? radio->sleep() : radio->standby();
+		} else {
+			reply("Error: test radio rx|standby|sleep");
+			return;
+		}
+		if (state == RADIOLIB_ERR_NONE) reply("OK");
+		else reply("Error: radio %d", state);
+		return;
+	}
+	if (what && !strcmp(what, "idle") && arg) {
+		long ms = atol(arg);
+		if (ms < 0 || ms > 1000) { reply("Error: test idle 0..1000"); return; }
+		loop_idle_ms = ms;
+		reply("OK");
+		return;
+	}
+	reply("Error: test radio rx|standby|sleep | test idle <ms>");
+}
+#endif
+
 static void cmd_help() {
 	reply("ver                         firmware and microReticulum version");
 	reply("hw                          board, radio and storage");
@@ -365,12 +410,17 @@ static void cmd_help() {
 	reply("set|get agcreset <min>|off  AGC reset interval");
 	reply("set|get sleep on|off        MCU idle sleep");
 	reply("set|get led off|tx          LED on transmit");
+	reply("set|get rxgain on|off       RX boosted gain (better sensitivity, more current)");
 	reply("get radio                   radio settings");
 	if (rlog::debug_build()) reply("log [on|both|off]           log output (debug build: both at boot)");
 	else reply("log [on|both|off]           log output (off after every boot)");
 	reply("reboot                      restart");
 	reply("erase                       factory reset (asks to confirm)");
 	reply("ota                         firmware update (not implemented yet)");
+#if defined(RRPTR_DEBUG_LOG)
+	reply("test radio rx|standby|sleep power test: radio state (until reboot)");
+	reply("test idle <ms>              power test: main loop idle per pass (default 2)");
+#endif
 }
 
 // ─── Dispatch ───────────────────────────────────────────────
@@ -393,6 +443,9 @@ static void run(char* text) {
 	else if (!strcmp(cmd, "reboot")) { reply("Rebooting..."); console.flush(); delay(100); board.reboot(); }
 	else if (!strcmp(cmd, "erase")) cmd_erase(arg1);
 	else if (!strcmp(cmd, "ota")) reply("Not implemented yet");
+#if defined(RRPTR_DEBUG_LOG)
+	else if (!strcmp(cmd, "test")) cmd_test(arg1, arg2);
+#endif
 	else if (!strcmp(cmd, "help") || !strcmp(cmd, "?")) cmd_help();
 	else reply("Error: unknown command '%s' (type help)", cmd);
 }

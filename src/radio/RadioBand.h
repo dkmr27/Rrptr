@@ -55,4 +55,5 @@ struct RadioConfig {
 	int8_t   power_dbm;         // chip power, clamped to the ceiling
 	uint8_t  sync_word;
 	uint16_t preamble_len;
+	bool     rx_boosted_gain;   // better sensitivity, more receive current
 };

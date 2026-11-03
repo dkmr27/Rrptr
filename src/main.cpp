@@ -156,5 +156,5 @@ void loop() {
 	}
 
 	reticulum.loop();  // also runs the LoRa interface
-	board.idle(2);
+	board.idle(cli::loop_idle_ms);
 }

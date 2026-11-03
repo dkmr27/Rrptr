@@ -6,6 +6,7 @@
 
 #include "board/Board.h"
 #include "radio/Radio.h"
+#include "board/RadioPins.h"
 
 using namespace RNS::Provisioning;
 
@@ -16,7 +17,7 @@ uint8_t led_mode = LED_TX;
 bool idle_sleep = true;
 RadioConfig radio0 = {
 	RRPTR_DEFAULT_FREQ_HZ, RRPTR_DEFAULT_BW_HZ, RRPTR_DEFAULT_SF, RRPTR_DEFAULT_CR,
-	RRPTR_DEFAULT_TX_DBM, 0x12, RRPTR_DEFAULT_PREAMBLE,
+	RRPTR_DEFAULT_TX_DBM, 0x12, RRPTR_DEFAULT_PREAMBLE, RADIO0_RX_BOOSTED_GAIN,
 };
 uint16_t agc_reset_minutes = 0;
 float battery_calibration = 1.0f;
@@ -127,6 +128,9 @@ void register_namespaces() {
 		.field_int("Preamble", radio::Preamble, FF_LIVE_APPLY, RRPTR_DEFAULT_PREAMBLE, 6, 64,
 			radio_setter([](fint_t x) { radio0.preamble_len = x; }),
 			[]() { return (fint_t)radio0.preamble_len; })
+		.field_bool("RX Boosted Gain", radio::RxBoostedGain, FF_LIVE_APPLY, RADIO0_RX_BOOSTED_GAIN,
+			[](const Value& v) { radio0.rx_boosted_gain = v.as_bool(); radio_changed = true; return true; },
+			[]() { return radio0.rx_boosted_gain; })
 		.on_commit(radio_commit_check)
 		.end();
 
