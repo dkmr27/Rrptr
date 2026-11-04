@@ -207,6 +207,7 @@ static void cmd_prov(char* arg1, char* arg2) {
 	}
 
 	bool remove = !strcmp(arg1, "del");
+	if (!remove && arg2) { reply("Error: one hash at a time"); return; }
 	RNS::Bytes hash;
 	if (!parse_hash(remove ? arg2 : arg1, hash)) {
 		reply("Error: expected a 32 character identity hash");

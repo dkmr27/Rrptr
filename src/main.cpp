@@ -60,9 +60,6 @@ static void reticulum_setup() {
 		lora_interface.start();
 
 		reticulum = RNS::Reticulum();
-		reticulum.transport_enabled(true);
-		reticulum.probe_destination_enabled(true);
-		reticulum.remote_management_enabled(true);
 		reticulum.start();
 		apply_radio();
 	}
@@ -80,6 +77,13 @@ void setup() {
 	// nothing else starts; loop() keeps reporting the error
 	if (!storage_begin()) return;
 	RNS::Utilities::OS::register_filesystem(storage_filesystem());
+
+	// A transport node's defaults. These must be set before the provisioning
+	// engine starts: its General Config fields take their defaults from these
+	// values, and saved settings are then applied on top.
+	RNS::Reticulum::transport_enabled(true);
+	RNS::Reticulum::probe_destination_enabled(true);
+	RNS::Reticulum::remote_management_enabled(true);
 
 	// Load the settings before anything uses them. Reticulum::start() would
 	// start the provisioning engine too, but the radio needs its settings first.
