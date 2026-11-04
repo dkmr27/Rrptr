@@ -39,6 +39,9 @@ public:
 	// Not virtual: on ESP32 it runs from IRAM while the flash cache may be off,
 	// so it must not go through a vtable in flash. Each MCU file defines it.
 	void wake();
+	// Console activity: keep the console responsive for a while. Used by boards
+	// whose idle() sleeps deeply enough to stop it.
+	virtual void stay_awake() {}
 
 	virtual void reboot() = 0;
 	// Reboot into the bootloader's OTA update mode, if supported

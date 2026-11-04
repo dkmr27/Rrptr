@@ -138,6 +138,10 @@ int16_t Radio::start_transmit(const uint8_t* data, size_t len) {
 }
 
 Radio::Event Radio::poll() {
+#if defined(RRPTR_MCU_ESP32)
+	// An edge during light sleep raises no interrupt, so also check the level
+	if (digitalRead(_pins.dio1) == HIGH) irq_flag[_index] = true;
+#endif
 	if (!irq_flag[_index]) return EVENT_NONE;
 	irq_flag[_index] = false;
 

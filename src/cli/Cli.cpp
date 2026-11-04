@@ -29,7 +29,10 @@ namespace cli {
 static const size_t CLI_LINE_MAX = 128;
 static const size_t ADMIN_MAX = 32;     // the library's limit for the allowed list
 
-uint32_t loop_idle_ms = 50;
+#ifndef BOARD_LOOP_IDLE_MS
+	#define BOARD_LOOP_IDLE_MS 50
+#endif
+uint32_t loop_idle_ms = BOARD_LOOP_IDLE_MS;
 
 static Radio* radio = nullptr;
 static LoRaInterface* lora = nullptr;
@@ -358,7 +361,7 @@ static void cmd_erase(char* arg) {
 // Test commands for power measurements; not saved, a reboot undoes them.
 //   test radio rx|standby|sleep   put the radio in that state (LoRa offline
 //                                 unless rx)
-//   test idle <ms>                longest main loop idle per pass (default 50)
+//   test idle <ms>                longest main loop idle per pass
 //   test uart off                 switch the console UART off (USB stays)
 //   test tx nocrc                 send one frame without a payload CRC
 //                                 (only with -DRRPTR_TEST_NOCRC)
@@ -437,7 +440,7 @@ static void cmd_help() {
 	reply("ota                         firmware update (not implemented yet)");
 #if defined(RRPTR_DEBUG_LOG)
 	reply("test radio rx|standby|sleep power test: radio state (until reboot)");
-	reply("test idle <ms>              power test: longest main loop idle (default 50)");
+	reply("test idle <ms>              power test: longest main loop idle (default %u)", BOARD_LOOP_IDLE_MS);
 	reply("test uart off               power test: console UART off (until reboot)");
 #if defined(RRPTR_TEST_NOCRC)
 	reply("test tx nocrc               send one frame without CRC (receivers drop it)");
@@ -475,6 +478,7 @@ static void run(char* text) {
 void poll() {
 	while (console.available()) {
 		int c = console.read();
+		board.stay_awake();
 		if (c == '\r' || c == '\n') {
 			if (line_len == 0) { if (c == '\r') { console.print("\r\n"); prompt(); } continue; }
 			console.print("\r\n");

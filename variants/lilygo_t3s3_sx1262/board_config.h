@@ -13,9 +13,14 @@
 #define BOARD_LED_ACTIVE_HIGH 1
 #define BOARD_BUTTON          0         // BOOT button, active low
 
-// Serial console: native USB only
-#define BOARD_UART_RX         -1
-#define BOARD_UART_TX         -1
+// Serial console on free header pins, alongside USB. USB stops
+// during light sleep, so this is the console for battery use.
+#define BOARD_UART_RX         42
+#define BOARD_UART_TX         46        // strapping pin, so TX: must not be pulled high at boot
+
+// Longest main loop idle: each timed wake from light sleep costs more here
+// (measured sleeping: 8.76 mA at 50 ms, 8.38 mA at 200 ms, 8.30 mA at 500 ms)
+#define BOARD_LOOP_IDLE_MS    200
 
 // No switched rail
 #define BOARD_RAIL_EN         -1
@@ -30,7 +35,7 @@
 // OLED (SSD1306, I2C); not used yet
 #define BOARD_OLED_SDA        18
 #define BOARD_OLED_SCL        17
-#define BOARD_OLED_RESET      21
+#define BOARD_OLED_RESET      -1        // none per LilyGO; GPIO21 goes to radio DIO4
 
 // Radios
 #define RADIO_COUNT           1
