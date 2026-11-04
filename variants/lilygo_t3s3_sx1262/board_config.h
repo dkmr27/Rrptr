@@ -32,10 +32,14 @@
 // Storage: LittleFS on the ESP32-S3's own flash
 #define BOARD_HAS_EXT_FLASH   0
 
-// OLED (SSD1306, I2C); not used yet
+// OLED (SSD1306, I2C)
+#define BOARD_HAS_DISPLAY     1
+#define BOARD_OLED_WIDTH      128
+#define BOARD_OLED_HEIGHT     64
+#define BOARD_OLED_ADDRESS    0x3C
 #define BOARD_OLED_SDA        18
 #define BOARD_OLED_SCL        17
-#define BOARD_OLED_RESET      -1        // none per LilyGO; GPIO21 goes to radio DIO4
+#define BOARD_OLED_RESET      21        // needed after a cold power-on
 
 // Radios
 #define RADIO_COUNT           1

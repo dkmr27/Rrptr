@@ -19,6 +19,7 @@
 #include "cli/Cli.h"
 #include "log/Log.h"
 #include "console/Console.h"
+#include "display/Display.h"
 
 using RNS::Provisioning::Provisioner;
 
@@ -109,6 +110,7 @@ void setup() {
 		reticulum_setup();
 	}
 	cli::begin(radio, lora);
+	display::begin(radio, lora);
 }
 
 static void greet() {
@@ -147,6 +149,7 @@ void loop() {
 	if (storage_error()) { storage_failed(); return; }
 	check_monitor();
 	cli::poll();
+	display::update();
 	if (!radio) { board.idle(10); return; }
 
 	if (settings::take_radio_changed()) apply_radio();
