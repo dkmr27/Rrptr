@@ -1,6 +1,10 @@
 #include "lora/LoRaInterface.h"
 
 #include <microReticulum/Cryptography/Random.h>
+#if defined(RRPTR_DEBUG_LOG)
+#include <microReticulum/Link.h>
+#include <microReticulum/Transport.h>
+#endif
 #include "log/Log.h"
 
 #include "board/Board.h"
@@ -109,12 +113,30 @@ void LoRaInterface::receive_frame() {
 	_rx_snr = snr;
 }
 
+#if defined(RRPTR_DEBUG_LOG)
+// microReticulum silently ignores data for a link it does not have, e.g. one a
+// client still holds from before this node rebooted, or one only passing through
+static void log_unknown_link(const uint8_t* data, size_t len) {
+	if ((data[0] & 0x0f) != 0x0c) return;  // not DATA to a LINK destination
+	size_t at = (data[0] & 0x40) ? 18 : 2;
+	if (len < at + 16) return;
+	RNS::Bytes id(data + at, 16);
+	for (const RNS::Link& link : RNS::Transport::active_links()) {
+		if (link.link_id() == id) return;
+	}
+	R_DEBUG("LoRa: data for link %s, which is not active on this node", id.toHex().c_str());
+}
+#endif
+
 void LoRaInterface::deliver(const uint8_t* data, size_t len, float rssi, float snr) {
 	_stats.rx_packets++;
 	// Reticulum header: flags, hops, 1 or 2 addresses (bit 6 of flags), context
 	size_t context_at = (data[0] & 0x40) ? 34 : 18;
 	R_DEBUG("LoRa: rx %u bytes, flags 0x%02x, context 0x%02x, RSSI %.1f, SNR %.2f", (unsigned)len,
 		data[0], len > context_at ? data[context_at] : 0, rssi, snr);
+#if defined(RRPTR_DEBUG_LOG)
+	log_unknown_link(data, len);
+#endif
 	std::shared_ptr<RNS::InterfaceImpl> self = shared_from_this();
 	RNS::Interface iface(self);
 	iface.r_stat_rssi(rssi);

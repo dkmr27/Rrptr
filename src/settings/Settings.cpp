@@ -7,6 +7,7 @@
 #include "board/Board.h"
 #include "radio/Radio.h"
 #include "board/RadioPins.h"
+#include "nomadnet/NomadNet.h"
 
 using namespace RNS::Provisioning;
 
@@ -21,6 +22,7 @@ RadioConfig radio0 = {
 uint16_t agc_reset_minutes = 0;
 uint8_t channel_access = CHANNEL_LBT;
 float battery_calibration = 1.0f;
+bool nomadnet_enabled = true;
 
 static Radio* radio0_instance = nullptr;
 static bool radio_changed = false;
@@ -142,6 +144,16 @@ void register_namespaces() {
 		.metric_int("Battery", power::Battery,
 			[]() { return (fint_t)board.battery_mv(); })
 		.end();
+
+#if RRPTR_NOMADNET
+	p.register_namespace("Rrptr NomadNet", nomad::Id)
+		.field_bool("Enabled", nomad::Enabled, FF_REBOOT_REQUIRED, nomadnet_enabled,
+			[](const Value& v) { nomadnet_enabled = v.as_bool(); return true; },
+			[]() { return nomadnet_enabled; })
+		.metric_bytes("Destination", nomad::Destination,
+			[]() { return nomadnet::destination() ? nomadnet::destination().hash() : RNS::Bytes{}; })
+		.end();
+#endif
 }
 
 }

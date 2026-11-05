@@ -19,6 +19,8 @@
 #include "storage/Storage.h"
 #include "log/Log.h"
 #include "console/Console.h"
+#include "neighbours/Neighbours.h"
+#include "nomadnet/NomadNet.h"
 
 using RNS::Provisioning::Provisioner;
 using RNS::Provisioning::Value;
@@ -166,14 +168,19 @@ static void cmd_get_id() {
 	reply("transport %s", RNS::Transport::identity().hash().toHex().c_str());
 	reply("mgmt      %s", mgmt ? mgmt.hash().toHex().c_str() : "off");
 	reply("probe     %s", probe ? probe.hash().toHex().c_str() : "off");
+#if RRPTR_NOMADNET
+	const RNS::Destination& page = nomadnet::destination();
+	reply("nomadnet  %s", page ? page.hash().toHex().c_str() : "off");
+#endif
 }
 
-// announce [mgmt|probe]: announce now instead of waiting for microReticulum's
-// own management announce (every 2 hours, the first 2 hours after boot)
+// announce [mgmt|probe|nomad]: announce now instead of waiting for the periodic
+// announces (every 2 hours, the first 2 hours after boot)
 static void cmd_announce(char* arg) {
 	bool mgmt = !arg || !strcmp(arg, "mgmt");
 	bool probe = !arg || !strcmp(arg, "probe");
-	if (!mgmt && !probe) { reply("Error: announce [mgmt|probe]"); return; }
+	bool nomad = !arg || !strcmp(arg, "nomad");
+	if (!mgmt && !probe && !nomad) { reply("Error: announce [mgmt|probe|nomad]"); return; }
 	if (!lora || !lora->online()) { reply("Error: radio off"); return; }
 
 	int sent = 0;
@@ -188,6 +195,7 @@ static void cmd_announce(char* arg) {
 			d.announce();
 			sent++;
 		}
+		if (nomad && nomadnet::announce()) sent++;
 	}
 	catch (const std::exception& e) {
 		reply("Error: %s", e.what());
@@ -195,6 +203,18 @@ static void cmd_announce(char* arg) {
 	}
 	if (sent) reply("OK, %d announce%s queued", sent, sent > 1 ? "s" : "");
 	else reply("Error: nothing to announce");
+}
+
+// Nodes heard directly, newest first
+static void cmd_neighbours() {
+	if (neighbours::count() == 0) { reply("none heard since boot"); return; }
+	for (size_t i = 0; i < neighbours::count(); i++) {
+		const neighbours::Entry& e = neighbours::get(i);
+		char age[8];
+		neighbours::format_age(e.heard_ms, age, sizeof(age));
+		reply("%s %.1f dBm %.1f dB %s ago %s", RNS::Bytes(e.id, neighbours::ID_LEN).toHex().c_str(),
+			e.rssi, e.snr, age, e.name);
+	}
 }
 
 // prov | prov <hash> | prov del <hash>
@@ -310,6 +330,15 @@ static void cmd_set(char* what, char* arg) {
 		return;
 	}
 
+#if RRPTR_NOMADNET
+	if (!strcmp(what, "nomadnet")) {
+		bool on;
+		if (!parse_on_off(arg, on)) { reply("Error: set nomadnet on|off"); return; }
+		if (Provisioner::instance().field(nomad::Id, nomad::Enabled, Value(on)) && commit(nomad::Id)) reply("OK, reboot to apply");
+		return;
+	}
+#endif
+
 	if (!strcmp(what, "cad")) {
 		int mode = (arg && !strcmp(arg, "on")) ? CHANNEL_CAD : (arg && !strcmp(arg, "off")) ? CHANNEL_LBT : -1;
 		if (mode < 0) { reply("Error: set cad on|off"); return; }
@@ -338,6 +367,9 @@ static void cmd_get(char* what) {
 	if (!strcmp(what, "led"))      { reply("%s", led_mode == LED_TX ? "tx" : "off"); return; }
 	if (!strcmp(what, "cad"))      { reply("%s", channel_access == CHANNEL_CAD ? "on" : "off"); return; }
 	if (!strcmp(what, "rxgain"))   { reply("%s", radio0.rx_boosted_gain ? "on" : "off"); return; }
+#if RRPTR_NOMADNET
+	if (!strcmp(what, "nomadnet")) { reply("%s", Provisioner::instance().field(nomad::Id, nomad::Enabled).as_bool() ? "on" : "off"); return; }
+#endif
 	reply("Error: unknown setting '%s' (type help)", what);
 }
 
@@ -432,7 +464,8 @@ static void cmd_help() {
 	reply("stats                       uptime, battery, radio and traffic counters");
 	reply("bat                         battery voltage");
 	reply("get id                      transport identity and destination hashes");
-	reply("an|announce [mgmt|probe]    announce now (default both)");
+	reply("an|announce [mgmt|probe|nomad]  announce now (default all)");
+	reply("neighbours                  nodes heard directly");
 	reply("prov [<hash> | del <hash>]  list, add or remove remote admin identities");
 	reply("set radio <MHz>,<kHz>,<SF>,<CR>[,<dBm>]");
 	reply("set|get tx <dBm>            chip output power");
@@ -441,6 +474,9 @@ static void cmd_help() {
 	reply("set|get led off|tx          LED on transmit");
 	reply("set|get cad on|off          scan the channel before transmit (off: listen only)");
 	reply("set|get rxgain on|off       RX boosted gain (better sensitivity, more current)");
+#if RRPTR_NOMADNET
+	reply("set|get nomadnet on|off     NomadNet pages (after a reboot)");
+#endif
 	reply("get radio                   radio settings");
 	if (rlog::debug_build()) reply("log [on|both|off]           log output (debug build: both at boot)");
 	else reply("log [on|both|off]           log output (off after every boot)");
@@ -470,6 +506,7 @@ static void run(char* text) {
 	else if (!strcmp(cmd, "stats")) cmd_stats();
 	else if (!strcmp(cmd, "bat")) cmd_bat();
 	else if (!strcmp(cmd, "prov")) cmd_prov(arg1, arg2);
+	else if (!strcmp(cmd, "neighbours")) cmd_neighbours();
 	else if (!strcmp(cmd, "an") || !strcmp(cmd, "announce")) cmd_announce(arg1);
 	else if (!strcmp(cmd, "set")) cmd_set(arg1, arg2);
 	else if (!strcmp(cmd, "get")) cmd_get(arg1);

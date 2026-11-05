@@ -67,6 +67,12 @@ namespace settings {
 		constexpr uint16_t Battery = 2;            // read-only, mV
 		// next-id: 3
 	}
+	namespace nomad {
+		constexpr uint16_t Id = 211;
+		constexpr uint16_t Enabled = 1;
+		constexpr uint16_t Destination = 2;        // read-only
+		// next-id: 3
+	}
 
 	enum LedMode : uint8_t { LED_OFF = 0, LED_TX = 1 };
 	enum ChannelAccessMode : uint8_t { CHANNEL_LBT = 0, CHANNEL_CAD = 1 };
@@ -80,6 +86,8 @@ namespace settings {
 	extern uint16_t agc_reset_minutes;
 	extern uint8_t channel_access;
 	extern float battery_calibration;
+	// NomadNet pages; only read at boot, and only in builds that have them
+	extern bool nomadnet_enabled;
 
 	// Name to show: the setting, or "Rrptr-" plus the last 4 hex digits of the
 	// transport identity

@@ -20,6 +20,8 @@
 #include "log/Log.h"
 #include "console/Console.h"
 #include "display/Display.h"
+#include "neighbours/Neighbours.h"
+#include "nomadnet/NomadNet.h"
 
 using RNS::Provisioning::Provisioner;
 
@@ -63,6 +65,8 @@ static void reticulum_setup() {
 		reticulum = RNS::Reticulum();
 		reticulum.start();
 		apply_radio();
+		neighbours::begin(lora_interface);
+		nomadnet::begin(radio, lora);
 	}
 	catch (const std::exception& e) {
 		R_ERROR("Reticulum setup failed: %s", e.what());
@@ -163,6 +167,7 @@ void loop() {
 	}
 
 	reticulum.loop();  // also runs the LoRa interface
+	nomadnet::loop();
 
 	// Sleep until the radio interrupts or the idle time is up. Packets waiting
 	// to go out (e.g. held off by listen-before-talk) are retried every 2 ms.
