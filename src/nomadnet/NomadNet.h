@@ -27,7 +27,7 @@ namespace nomadnet {
 	// Call once microReticulum has started; the radio and interface are reported on.
 	// Does nothing if the setting has it turned off.
 	void begin(Radio* radio, LoRaInterface* lora);
-	// Sends the periodic announce; call from loop()
+	// Announces about 30 s after boot and every 2 hours; call from loop()
 	void loop();
 	// Announces now. False if there is nothing to announce.
 	bool announce();

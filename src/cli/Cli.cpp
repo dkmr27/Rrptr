@@ -175,8 +175,10 @@ static void cmd_get_id() {
 #endif
 }
 
-// announce [mgmt|probe|nomad]: announce now instead of waiting for the periodic
-// announces (every 2 hours, the first 2 hours after boot)
+// announce [mgmt|probe|nomad]: announce now instead of waiting. microReticulum
+// announces mgmt and probe every 2 hours: on an established node the first is
+// straight after boot, on a new one after 2 hours of total uptime, as its clock
+// carries over reboots. NomadNet announces about 30 s after boot, then every 2 hours.
 static void cmd_announce(char* arg) {
 	bool mgmt = !arg || !strcmp(arg, "mgmt");
 	bool probe = !arg || !strcmp(arg, "probe");

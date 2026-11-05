@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <vector>
 
+#include <microReticulum/Cryptography/Random.h>
 #include <microReticulum/Identity.h>
 #include <microReticulum/Transport.h>
 #include <microReticulum/Provisioning/Provisioning.h>
@@ -27,12 +28,16 @@ namespace nomadnet {
 
 // As microReticulum's management announce
 static const uint32_t ANNOUNCE_INTERVAL_MS = 2UL * 60 * 60 * 1000;
+// First announce after boot, in 0..15 s of random extra time, so nodes restarting
+// together after a power cut do not all transmit at once
+static const uint32_t BOOT_ANNOUNCE_DELAY_MS = 30000;
+static const uint32_t BOOT_ANNOUNCE_JITTER_STEP_MS = 60;   // times a random byte
 static const size_t HEADER_LEN = 3;     // msgpack bin16 header
 
 static RNS::Destination dest(RNS::Type::NONE);
 static Radio* radio = nullptr;
 static LoRaInterface* lora = nullptr;
-static uint32_t last_announce = 0;
+static uint32_t next_announce = 0;     // millis
 
 // One page is built at a time, as requests are handled in the main loop
 static char page[1400];
@@ -178,19 +183,20 @@ void begin(Radio* r, LoRaInterface* l) {
 	dest.register_request_handler("/page/stats.mu", stats_page, allow);
 	dest.register_request_handler("/page/admin.mu", admin_page, allow);
 	dest.register_request_handler("/page/neighbours.mu", neighbours_page, allow);
-	last_announce = millis();
+	next_announce = millis() + BOOT_ANNOUNCE_DELAY_MS
+		+ RNS::Cryptography::random(1).data()[0] * BOOT_ANNOUNCE_JITTER_STEP_MS;
 	R_INFO("NomadNet page on %s", dest.hash().toHex().c_str());
 }
 
 bool announce() {
 	if (!dest) return false;
-	last_announce = millis();
+	next_announce = millis() + ANNOUNCE_INTERVAL_MS;
 	dest.announce(Bytes(settings::node_name()));
 	return true;
 }
 
 void loop() {
-	if (dest && lora && lora->online() && millis() - last_announce >= ANNOUNCE_INTERVAL_MS) announce();
+	if (dest && lora && lora->online() && (int32_t)(millis() - next_announce) >= 0) announce();
 }
 
 const RNS::Destination& destination() { return dest; }
