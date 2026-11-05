@@ -128,6 +128,8 @@ static void cmd_hw() {
 		reply("radio0 not available");
 	}
 	reply("storage %s", storage_description());
+	const char* bootloader = board.bootloader_version();
+	if (bootloader) reply("bootloader %s", bootloader);
 }
 
 static void cmd_bat() {

@@ -92,4 +92,34 @@ const char* NRF52Board::reset_reason() {
 	return "other";
 }
 
+// The UF2 bootloader holds its INFO_UF2.TXT in flash, which includes
+// "UF2 Bootloader <version>". Where depends on the bootloader build, so search
+// the known area, as MeshCore's NRF52Board does (MIT, by the MeshCore project and
+// its contributors).
+const char* NRF52Board::bootloader_version() {
+	static const char MARKER[] = "UF2 Bootloader ";
+	static const size_t MARKER_LEN = sizeof(MARKER) - 1;
+	static const uint8_t* const AREA = (const uint8_t*)0x000FB000;
+	static const size_t AREA_LEN = 0x3000;
+	static char version[24];
+	static bool searched = false;
+
+	if (!searched) {
+		searched = true;
+		for (size_t i = 0; i + MARKER_LEN < AREA_LEN; i++) {
+			if (memcmp(AREA + i, MARKER, MARKER_LEN)) continue;
+			const uint8_t* text = AREA + i + MARKER_LEN;
+			size_t room = AREA_LEN - i - MARKER_LEN;
+			size_t n = 0;
+			while (n < sizeof(version) - 1 && n < room && text[n] > ' ' && text[n] < 0x7f) {
+				version[n] = text[n];
+				n++;
+			}
+			version[n] = 0;
+			break;
+		}
+	}
+	return version[0] ? version : nullptr;
+}
+
 #endif

@@ -13,6 +13,7 @@ public:
 	void reboot() override;
 	bool enter_ota() override;
 	const char* reset_reason() override;
+	const char* bootloader_version() override;
 };
 
 #endif
