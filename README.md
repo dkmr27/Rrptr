@@ -1,6 +1,6 @@
 # Rrptr
 
-A low power Reticulum transport node for LoRa, built on [microReticulum](https://github.com/attermann/microReticulum)
+A low power Reticulum transport node for LoRa, built around [microReticulum](https://github.com/attermann/microReticulum)
 
 Development status: alpha
 
@@ -13,7 +13,7 @@ License: MIT
 * The goal is to enable building Reticulum based LoRa radio meshes with solar powered devices, in the same power consumption class as MeshCore or Meshtastic.
 * Bring-up is done from a serial CLI, further configuration over RNS can be done using the web console packed with [microReticulum_firmware](https://github.com/attermann/microReticulum_Firmware).
 
-AI disclosure: I have leveraged AI in the creation of this code, but not without an understanding what it's done. As a complete AI noob it's been an interest learning experience for me in what modern AI is capable of.
+AI disclosure: I have leveraged AI in the creation of this code, but not without an understanding what it's done. As a complete AI noob it's been an interesting learning experience for me in what modern AI is capable of.
 
 ## Supported Hardware
 
