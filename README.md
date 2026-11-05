@@ -19,7 +19,7 @@ AI disclosure: I have leveraged AI in the creation of this code, but not without
 
 | Env | Board | MCU | Radio | Idle Current |
 |---|---|---|---|---|
-| `promicro_sx1262` | ProMicro nRF52840 with SX1262 module ("FakeTec") | nRF52840 | SX1262 | 8.3 mA |
+| `promicro_sx1262` | ProMicro nRF52840 with SX1262 module ("FakeTec") + 25Q32/64/128 flash | nRF52840 | SX1262 | 8.3 mA |
 | `xiao_nrf_sx1262` | Seeed XIAO nRF52840 with Wio-SX1262 | nRF52840 | SX1262 | |
 | `lilygo_t3s3_sx1262` | LilyGO T3S3 V1.2 SX1262 | ESP32-S3 | SX1262 | 8.8 mA |
 
