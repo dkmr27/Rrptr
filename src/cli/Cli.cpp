@@ -21,6 +21,7 @@
 #include "console/Console.h"
 #include "neighbours/Neighbours.h"
 #include "nomadnet/NomadNet.h"
+#include "reboot/Reboot.h"
 
 using RNS::Provisioning::Provisioner;
 using RNS::Provisioning::Value;
@@ -511,7 +512,7 @@ static void run(char* text) {
 	else if (!strcmp(cmd, "set")) cmd_set(arg1, arg2);
 	else if (!strcmp(cmd, "get")) cmd_get(arg1);
 	else if (!strcmp(cmd, "log")) cmd_log(arg1);
-	else if (!strcmp(cmd, "reboot")) { reply("Rebooting..."); console.flush(); delay(100); board.reboot(); }
+	else if (!strcmp(cmd, "reboot")) { reply("Rebooting..."); reboot::request(); }
 	else if (!strcmp(cmd, "erase")) cmd_erase(arg1);
 	else if (!strcmp(cmd, "ota")) reply("Not implemented yet");
 #if defined(RRPTR_DEBUG_LOG)

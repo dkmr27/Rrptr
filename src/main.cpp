@@ -22,6 +22,7 @@
 #include "display/Display.h"
 #include "neighbours/Neighbours.h"
 #include "nomadnet/NomadNet.h"
+#include "reboot/Reboot.h"
 
 using RNS::Provisioning::Provisioner;
 
@@ -95,6 +96,7 @@ void setup() {
 	radio = radio_create(0, board.radio_spi(0));
 	settings::attach_radio(radio);
 	settings::register_namespaces();
+	Provisioner::instance().on_reboot([]() { reboot::request(); });
 	Provisioner::instance().begin();
 	settings::clamp_stored_power();
 
@@ -153,6 +155,7 @@ void loop() {
 	if (storage_error()) { storage_failed(); return; }
 	check_monitor();
 	cli::poll();
+	reboot::check(radio, lora);
 	display::update();
 	if (!radio) { board.idle(10); return; }
 
