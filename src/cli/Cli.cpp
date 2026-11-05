@@ -43,6 +43,7 @@ static LoRaInterface* lora = nullptr;
 static char line[CLI_LINE_MAX + 1];
 static size_t line_len = 0;
 static bool erase_armed = false;
+static bool ota_armed = false;
 
 void begin(Radio* r, LoRaInterface* l) {
 	radio = r;
@@ -441,6 +442,21 @@ static void cmd_log(char* arg) {
 	reply("OK");
 }
 
+// Leaves the node off the air until it is updated or reset, so it asks first
+static void cmd_ota(char* arg) {
+	if (!board.has_ota()) { reply("Not available on this board"); return; }
+	if (!arg || strcmp(arg, "yes")) {
+		reply("This reboots into the bootloader, which advertises as AdaDFU over Bluetooth.");
+		reply("The node stays off the air until it is updated or reset.");
+		reply("Type 'ota yes' to confirm.");
+		ota_armed = true;
+		return;
+	}
+	if (!ota_armed) { reply("Type 'ota' first"); return; }
+	reply("Rebooting into OTA update mode...");
+	reboot::request_ota();
+}
+
 static void cmd_erase(char* arg) {
 	if (!arg || strcmp(arg, "yes")) {
 		reply("This wipes all settings, the transport identity and all tables.");
@@ -543,7 +559,7 @@ static void cmd_help() {
 	else reply("log [on|both|off]           log output (off after every boot)");
 	reply("reboot                      restart");
 	reply("erase                       factory reset (asks to confirm)");
-	reply("ota                         firmware update (not implemented yet)");
+	if (board.has_ota()) reply("ota                         firmware update over Bluetooth (asks to confirm)");
 #if defined(RRPTR_DEBUG_LOG)
 	reply("test radio rx|standby|sleep power test: radio state (until reboot)");
 	reply("test idle <ms>              power test: longest main loop idle (default %u)", BOARD_LOOP_IDLE_MS);
@@ -561,6 +577,7 @@ static void run(char* text) {
 	char* arg1 = strtok(nullptr, " ");
 	char* arg2 = strtok(nullptr, "");   // the rest of the line (names may contain spaces)
 	if (strcmp(cmd, "erase")) erase_armed = false;
+	if (strcmp(cmd, "ota")) ota_armed = false;
 
 	if (!strcmp(cmd, "ver") || !strcmp(cmd, "version")) cmd_ver();
 	else if (!strcmp(cmd, "hw") || !strcmp(cmd, "board")) cmd_hw();
@@ -574,7 +591,7 @@ static void run(char* text) {
 	else if (!strcmp(cmd, "log")) cmd_log(arg1);
 	else if (!strcmp(cmd, "reboot")) { reply("Rebooting..."); reboot::request(); }
 	else if (!strcmp(cmd, "erase")) cmd_erase(arg1);
-	else if (!strcmp(cmd, "ota")) reply("Not implemented yet");
+	else if (!strcmp(cmd, "ota")) cmd_ota(arg1);
 #if defined(RRPTR_DEBUG_LOG)
 	else if (!strcmp(cmd, "test")) cmd_test(arg1, arg2);
 #endif

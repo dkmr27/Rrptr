@@ -13,6 +13,8 @@ class LoRaInterface;
 
 namespace reboot {
 	void request();
+	// The same, but into the bootloader's OTA update mode
+	void request_ota();
 	// Does the work once requested; call from loop()
 	void check(Radio* radio, LoRaInterface* lora);
 }

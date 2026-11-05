@@ -21,12 +21,18 @@ static const int MAX_LINKS_CLOSED = LoRaInterface::TX_QUEUE_MAX - 2;
 
 static bool requested = false;
 static bool links_closed = false;
+static bool into_ota = false;
 static uint32_t requested_at = 0;
 
 void request() {
 	if (requested) return;
 	requested = true;
 	requested_at = millis();
+}
+
+void request_ota() {
+	request();
+	into_ota = true;
 }
 
 static void close_links() {
@@ -55,8 +61,9 @@ void check(Radio* radio, LoRaInterface* lora) {
 	uint32_t waited = millis() - requested_at;
 	bool sent = !lora || !radio || (lora->queued() == 0 && !radio->transmitting());
 	if ((waited >= MIN_WAIT_MS && sent) || waited >= MAX_WAIT_MS) {
-		R_INFO("Rebooting");
+		R_INFO(into_ota ? "Rebooting into OTA update mode" : "Rebooting");
 		console.flush();
+		if (into_ota) board.enter_ota();
 		board.reboot();
 	}
 }

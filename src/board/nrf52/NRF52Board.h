@@ -11,6 +11,7 @@ public:
 	uint16_t battery_mv() override;
 	void idle(uint32_t max_ms) override;
 	void reboot() override;
+	bool has_ota() const override { return true; }
 	bool enter_ota() override;
 	const char* reset_reason() override;
 	const char* bootloader_version() override;

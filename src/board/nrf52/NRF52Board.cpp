@@ -75,6 +75,9 @@ void NRF52Board::reboot() {
 	NVIC_SystemReset();
 }
 
+// The bootloader advertises as AdaDFU and takes the firmware over Bluetooth. The
+// application needs no Bluetooth code for this: it leaves a value for the
+// bootloader in GPREGRET and resets.
 bool NRF52Board::enter_ota() {
 	enterOTADfu();  // does not return
 	return true;

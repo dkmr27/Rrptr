@@ -44,7 +44,8 @@ public:
 	virtual void stay_awake() {}
 
 	virtual void reboot() = 0;
-	// Reboot into the bootloader's OTA update mode, if supported
+	// The bootloader has an OTA update mode, and enter_ota() reboots into it
+	virtual bool has_ota() const { return false; }
 	virtual bool enter_ota() { return false; }
 	virtual const char* reset_reason() = 0;
 	// Bootloader version, or null if the board cannot tell
