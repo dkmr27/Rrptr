@@ -148,8 +148,8 @@ static void cmd_stats() {
 		float airtime_pct = up ? s.tx_airtime_ms / 10.0f / up : 0;
 		reply("rx %lu packets (%lu frames), errors %lu, no-crc %lu, orphans %lu",
 			s.rx_packets, s.rx_frames, s.rx_errors, s.rx_no_crc, s.rx_orphans);
-		reply("tx %lu packets, dropped %lu, queued %lu, airtime %lu ms (%.2f%%)",
-			s.tx_packets, s.tx_dropped, lora->queued(), s.tx_airtime_ms, airtime_pct);
+		reply("tx %lu packets, dropped %lu, queued %lu, channel busy %lu, airtime %lu ms (%.2f%%)",
+			s.tx_packets, s.tx_dropped, lora->queued(), s.tx_busy, s.tx_airtime_ms, airtime_pct);
 	}
 	reply("paths %u, destinations %u, announces %u, links %u",
 		(unsigned)RNS::Transport::new_path_table().size(),
@@ -310,6 +310,13 @@ static void cmd_set(char* what, char* arg) {
 		return;
 	}
 
+	if (!strcmp(what, "cad")) {
+		int mode = (arg && !strcmp(arg, "on")) ? CHANNEL_CAD : (arg && !strcmp(arg, "off")) ? CHANNEL_LBT : -1;
+		if (mode < 0) { reply("Error: set cad on|off"); return; }
+		if (Provisioner::instance().field(radio::Id0, radio::ChannelAccess, Value::make_enum(mode)) && commit(radio::Id0)) reply("OK");
+		return;
+	}
+
 	if (!strcmp(what, "led")) {
 		int mode = (arg && !strcmp(arg, "tx")) ? LED_TX : (arg && !strcmp(arg, "off")) ? LED_OFF : -1;
 		if (mode < 0) { reply("Error: set led off|tx"); return; }
@@ -329,6 +336,7 @@ static void cmd_get(char* what) {
 	if (!strcmp(what, "name"))     { reply("%s", node_name().c_str()); return; }
 	if (!strcmp(what, "agcreset")) { if (agc_reset_minutes) reply("%u min", agc_reset_minutes); else reply("off"); return; }
 	if (!strcmp(what, "led"))      { reply("%s", led_mode == LED_TX ? "tx" : "off"); return; }
+	if (!strcmp(what, "cad"))      { reply("%s", channel_access == CHANNEL_CAD ? "on" : "off"); return; }
 	if (!strcmp(what, "rxgain"))   { reply("%s", radio0.rx_boosted_gain ? "on" : "off"); return; }
 	reply("Error: unknown setting '%s' (type help)", what);
 }
@@ -431,6 +439,7 @@ static void cmd_help() {
 	reply("set|get name <name>         node name");
 	reply("set|get agcreset <min>|off  AGC reset interval");
 	reply("set|get led off|tx          LED on transmit");
+	reply("set|get cad on|off          scan the channel before transmit (off: listen only)");
 	reply("set|get rxgain on|off       RX boosted gain (better sensitivity, more current)");
 	reply("get radio                   radio settings");
 	if (rlog::debug_build()) reply("log [on|both|off]           log output (debug build: both at boot)");

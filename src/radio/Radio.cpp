@@ -126,14 +126,24 @@ int16_t Radio::apply_output_power() {
 int16_t Radio::start_receive() {
 	irq_flag[_index] = false;
 	_transmitting = false;
+	_scanning = false;
 	return chip_start_receive();
 }
 
 int16_t Radio::start_transmit(const uint8_t* data, size_t len) {
 	irq_flag[_index] = false;
+	_scanning = false;
 	int16_t state = chip_start_transmit(data, len);
 	_transmitting = (state == RADIOLIB_ERR_NONE);
 	if (!_transmitting) start_receive();
+	return state;
+}
+
+int16_t Radio::start_scan() {
+	irq_flag[_index] = false;
+	_scanning = true;
+	int16_t state = chip_start_scan();
+	if (state != RADIOLIB_ERR_NONE) start_receive();
 	return state;
 }
 
@@ -145,6 +155,10 @@ Radio::Event Radio::poll() {
 	if (!irq_flag[_index]) return EVENT_NONE;
 	irq_flag[_index] = false;
 
+	if (_scanning) {
+		_scanning = false;
+		return EVENT_SCAN_DONE;
+	}
 	if (_transmitting) {
 		chip_finish_transmit();
 		start_receive();

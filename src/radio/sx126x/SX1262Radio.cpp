@@ -114,6 +114,11 @@ int16_t SX1262Radio::chip_start_transmit(const uint8_t* data, size_t len) {
 	return _chip.startTransmit(data, len);
 }
 
+// The chip picks its CAD settings for the spreading factor and goes to standby
+// when done. A failed read counts as activity, so we do not talk over someone.
+int16_t SX1262Radio::chip_start_scan() { return _chip.startChannelScan(); }
+bool    SX1262Radio::chip_scan_found_activity() { return _chip.getChannelScanResult() != RADIOLIB_CHANNEL_FREE; }
+
 int16_t SX1262Radio::chip_finish_transmit() { return _chip.finishTransmit(); }
 size_t  SX1262Radio::chip_packet_length() { return _chip.getPacketLength(); }
 int16_t SX1262Radio::chip_read(uint8_t* buf, size_t len) { return _chip.readData(buf, len); }

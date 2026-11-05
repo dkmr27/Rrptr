@@ -157,7 +157,7 @@ void loop() {
 	// Periodic AGC reset, between frames
 	static uint32_t last_agc = millis();
 	if (settings::agc_reset_minutes > 0 && millis() - last_agc >= settings::agc_reset_minutes * 60000UL
-			&& !radio->transmitting() && !radio->receiving_packet()) {
+			&& !radio->transmitting() && !radio->scanning() && !radio->receiving_packet()) {
 		last_agc = millis();
 		radio->reset_agc();
 	}

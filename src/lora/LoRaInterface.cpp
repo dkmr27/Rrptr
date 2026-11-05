@@ -4,9 +4,16 @@
 #include "log/Log.h"
 
 #include "board/Board.h"
+#include "settings/Settings.h"
 
 static const uint8_t HEADER_SPLIT = 0x01;
 static const uint8_t HEADER_SEQ   = 0xF0;
+// After seeing the channel busy, wait a random 0..7 slots of this many symbols,
+// so nodes waiting on the same transmission do not all start together
+static const uint32_t BACKOFF_SLOT_SYMBOLS = 12;
+// Far longer than a scan takes at any setting; the radio is deaf during one,
+// so a scan that never reports back must not leave it that way
+static const uint32_t SCAN_TIMEOUT_MS = 1000;
 
 LoRaInterface::LoRaInterface(Radio& radio, const char* name)
 	: RNS::InterfaceImpl(name), _radio(radio) {
@@ -45,6 +52,7 @@ void LoRaInterface::loop() {
 	switch (_radio.poll()) {
 	case Radio::EVENT_RX_DONE: receive_frame(); break;
 	case Radio::EVENT_TX_DONE: transmit_done(); break;
+	case Radio::EVENT_SCAN_DONE: scan_done(); break;
 	default: break;
 	}
 	if (_online && !_tx_active) start_next_packet();
@@ -127,10 +135,56 @@ bool LoRaInterface::send_outgoing(const RNS::Bytes& data) {
 }
 
 void LoRaInterface::start_next_packet() {
+	if (_radio.scanning()) {
+		if (millis() - _scan_started >= SCAN_TIMEOUT_MS) {
+			R_WARNING("LoRa: channel scan timed out");
+			_radio.start_receive();
+		}
+		return;
+	}
 	if (_tx_queue.empty() || _radio.transmitting()) return;
-	// Listen before talk: let a frame being received finish first
-	if (_radio.receiving_packet()) return;
+	// Listen before talk: let a frame being received finish first. Both channel
+	// access modes need this, as a scan would cut that frame off.
+	if (_radio.receiving_packet()) {
+		_channel_busy = true;
+		return;
+	}
+	if (_channel_busy) {
+		start_backoff();
+		return;
+	}
+	if ((int32_t)(millis() - _backoff_until) < 0) return;
 
+	if (settings::channel_access == settings::CHANNEL_CAD) {
+		_scan_started = millis();
+		if (_radio.start_scan() == RADIOLIB_ERR_NONE) return;
+	}
+	send_next_packet();
+}
+
+// The channel was busy and has cleared: pick the random wait
+void LoRaInterface::start_backoff() {
+	_channel_busy = false;
+	_stats.tx_busy++;
+	const RadioConfig& c = _radio.config();
+	uint32_t symbol_us = (1000000UL << c.sf) / c.bandwidth_hz;
+	uint32_t slots = RNS::Cryptography::random(1).data()[0] & 0x07;
+	_backoff_until = millis() + slots * BACKOFF_SLOT_SYMBOLS * symbol_us / 1000;
+}
+
+void LoRaInterface::scan_done() {
+	if (!_online) return;  // switched off during the scan: leave the radio as it is
+	bool busy = _radio.scan_found_activity();
+	if (busy || _tx_queue.empty()) {
+		// Straight back to receive, in time to catch what the scan heard
+		_radio.start_receive();
+		if (busy) _channel_busy = true;
+		return;
+	}
+	send_next_packet();
+}
+
+void LoRaInterface::send_next_packet() {
 	_tx_packet = _tx_queue.front();
 	_tx_queue.pop_front();
 	_tx_sent = 0;

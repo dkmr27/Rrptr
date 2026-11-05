@@ -28,6 +28,8 @@ protected:
 	int16_t chip_set_modem(const RadioConfig& config) override;
 	int16_t chip_start_receive() override;
 	int16_t chip_start_transmit(const uint8_t* data, size_t len) override;
+	int16_t chip_start_scan() override;
+	bool    chip_scan_found_activity() override;
 	int16_t chip_finish_transmit() override;
 	size_t  chip_packet_length() override;
 	int16_t chip_read(uint8_t* buf, size_t len) override;

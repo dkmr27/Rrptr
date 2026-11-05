@@ -29,7 +29,7 @@ public:
 	// Packet and drop counters, for status output
 	struct Stats {
 		uint32_t rx_packets, rx_frames, rx_errors, rx_no_crc, rx_orphans;
-		uint32_t tx_packets, tx_dropped, tx_airtime_ms;
+		uint32_t tx_packets, tx_dropped, tx_busy, tx_airtime_ms;
 	};
 	const Stats& stats() const { return _stats; }
 
@@ -48,6 +48,9 @@ private:
 	void receive_frame();
 	void deliver(const uint8_t* data, size_t len, float rssi, float snr);
 	void start_next_packet();
+	void send_next_packet();
+	void scan_done();
+	void start_backoff();
 	void transmit_frame(const uint8_t* data, size_t len);
 	void transmit_done();
 	void update_bitrate();
@@ -67,5 +70,8 @@ private:
 	size_t  _tx_sent = 0;           // packet bytes already sent
 	uint8_t _tx_header = 0;
 	bool    _tx_active = false;
+	bool    _channel_busy = false;  // seen busy; back off once it clears
+	uint32_t _backoff_until = 0;    // millis
+	uint32_t _scan_started = 0;     // millis
 	uint8_t _tx_frame[1 + FRAME_PAYLOAD];
 };

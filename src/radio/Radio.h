@@ -28,6 +28,8 @@ public:
 		EVENT_NONE,
 		EVENT_RX_DONE,      // a packet (or a failed one) is waiting: call read_packet()
 		EVENT_TX_DONE,      // transmit finished, radio is back in receive
+		EVENT_SCAN_DONE,    // channel scan finished: call scan_found_activity(), then
+		                    // start_transmit() or start_receive()
 	};
 
 	Radio(uint8_t index, const RadioPins& pins) : _index(index), _pins(pins) {}
@@ -61,6 +63,12 @@ public:
 	int16_t start_receive();
 	int16_t start_transmit(const uint8_t* data, size_t len);
 	bool    transmitting() const { return _transmitting; }
+
+	// Channel activity detection. The radio stops receiving until the caller
+	// follows EVENT_SCAN_DONE with start_transmit() or start_receive().
+	int16_t start_scan();
+	bool    scanning() const { return _scanning; }
+	bool    scan_found_activity() { return chip_scan_found_activity(); }
 
 	// Call from the main loop: handles the radio interrupt and reports what
 	// happened. After EVENT_TX_DONE the radio is already receiving again.
@@ -98,6 +106,8 @@ protected:
 	virtual int16_t chip_set_modem(const RadioConfig& config) = 0;   // bw, sf, cr, sync, preamble
 	virtual int16_t chip_start_receive() = 0;
 	virtual int16_t chip_start_transmit(const uint8_t* data, size_t len) = 0;
+	virtual int16_t chip_start_scan() = 0;
+	virtual bool    chip_scan_found_activity() = 0;
 	virtual int16_t chip_finish_transmit() = 0;
 	virtual size_t  chip_packet_length() = 0;
 	virtual int16_t chip_read(uint8_t* buf, size_t len) = 0;
@@ -123,6 +133,7 @@ protected:
 	int8_t            _requested_power_dbm = 0;
 	int8_t            _applied_power_dbm = 0;
 	bool              _transmitting = false;
+	bool              _scanning = false;
 	float             _rssi = 0;
 	float             _snr = 0;
 };

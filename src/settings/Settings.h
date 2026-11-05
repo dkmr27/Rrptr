@@ -58,7 +58,8 @@ namespace settings {
 		constexpr uint16_t AgcResetMinutes = 6;
 		constexpr uint16_t Preamble = 7;
 		constexpr uint16_t RxBoostedGain = 8;
-		// next-id: 9
+		constexpr uint16_t ChannelAccess = 9;
+		// next-id: 10
 	}
 	namespace power {
 		constexpr uint16_t Id = 210;
@@ -68,6 +69,7 @@ namespace settings {
 	}
 
 	enum LedMode : uint8_t { LED_OFF = 0, LED_TX = 1 };
+	enum ChannelAccessMode : uint8_t { CHANNEL_LBT = 0, CHANNEL_CAD = 1 };
 
 	// ─── Current values ─────────────────────────────────────
 	// The node's name, or empty to use the default from node_name()
@@ -76,6 +78,7 @@ namespace settings {
 	// Radio 0 settings; freq_hz 0 = not configured
 	extern RadioConfig radio0;
 	extern uint16_t agc_reset_minutes;
+	extern uint8_t channel_access;
 	extern float battery_calibration;
 
 	// Name to show: the setting, or "Rrptr-" plus the last 4 hex digits of the
