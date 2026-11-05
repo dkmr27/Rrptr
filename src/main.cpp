@@ -20,6 +20,7 @@
 #include "log/Log.h"
 #include "console/Console.h"
 #include "display/Display.h"
+#include "discovery/Discovery.h"
 #include "neighbours/Neighbours.h"
 #include "nomadnet/NomadNet.h"
 #include "reboot/Reboot.h"
@@ -68,6 +69,7 @@ static void reticulum_setup() {
 		apply_radio();
 		neighbours::begin(lora_interface);
 		nomadnet::begin(radio, lora);
+		discovery::begin(lora);
 	}
 	catch (const std::exception& e) {
 		R_ERROR("Reticulum setup failed: %s", e.what());
@@ -171,8 +173,10 @@ void loop() {
 
 	reticulum.loop();  // also runs the LoRa interface
 	nomadnet::loop();
+	discovery::loop();
 
 	// Sleep until the radio interrupts or the idle time is up. Packets waiting
-	// to go out (e.g. held off by listen-before-talk) are retried every 2 ms.
-	board.idle(lora && lora->queued() ? 2 : cli::loop_idle_ms);
+	// to go out (e.g. held off by listen-before-talk) are retried every 2 ms, and
+	// finding a discovery stamp carries on just as quickly.
+	board.idle((lora && lora->queued()) || discovery::busy() ? 2 : cli::loop_idle_ms);
 }

@@ -8,6 +8,7 @@
 #include "radio/Radio.h"
 #include "board/RadioPins.h"
 #include "nomadnet/NomadNet.h"
+#include "discovery/Discovery.h"
 
 using namespace RNS::Provisioning;
 
@@ -23,6 +24,9 @@ uint16_t agc_reset_minutes = 0;
 uint8_t channel_access = CHANNEL_LBT;
 float battery_calibration = 1.0f;
 bool nomadnet_enabled = true;
+bool discovery_enabled = false;
+bool location_enabled = false;
+double latitude = 0, longitude = 0, height = 0;
 
 static Radio* radio0_instance = nullptr;
 static bool radio_changed = false;
@@ -154,6 +158,26 @@ void register_namespaces() {
 			[]() { return nomadnet::destination() ? nomadnet::destination().hash() : RNS::Bytes{}; })
 		.end();
 #endif
+
+	p.register_namespace("Rrptr Discovery", discovery_ns::Id)
+		.field_bool("Enabled", discovery_ns::Enabled, FF_LIVE_APPLY, false,
+			[](const Value& v) { discovery_enabled = v.as_bool(); return true; },
+			[]() { return discovery_enabled; })
+		.field_bool("Publish Location", discovery_ns::PublishLocation, FF_LIVE_APPLY, false,
+			[](const Value& v) { location_enabled = v.as_bool(); return true; },
+			[]() { return location_enabled; })
+		.field_float("Latitude", discovery_ns::Latitude, FF_LIVE_APPLY, 0.0, -90.0, 90.0,
+			[](const Value& v) { latitude = v.as_float(); return true; },
+			[]() { return (ffloat_t)latitude; })
+		.field_float("Longitude", discovery_ns::Longitude, FF_LIVE_APPLY, 0.0, -180.0, 180.0,
+			[](const Value& v) { longitude = v.as_float(); return true; },
+			[]() { return (ffloat_t)longitude; })
+		.field_float("Height", discovery_ns::Height, FF_LIVE_APPLY, 0.0, -4000.0, 1000000.0,
+			[](const Value& v) { height = v.as_float(); return true; },
+			[]() { return (ffloat_t)height; })
+		.metric_bytes("Destination", discovery_ns::Destination,
+			[]() { return discovery::destination() ? discovery::destination().hash() : RNS::Bytes{}; })
+		.end();
 }
 
 }

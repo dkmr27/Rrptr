@@ -73,6 +73,16 @@ namespace settings {
 		constexpr uint16_t Destination = 2;        // read-only
 		// next-id: 3
 	}
+	namespace discovery_ns {
+		constexpr uint16_t Id = 212;
+		constexpr uint16_t Enabled = 1;
+		constexpr uint16_t PublishLocation = 2;
+		constexpr uint16_t Latitude = 3;
+		constexpr uint16_t Longitude = 4;
+		constexpr uint16_t Height = 5;            // metres
+		constexpr uint16_t Destination = 6;        // read-only
+		// next-id: 7
+	}
 
 	enum LedMode : uint8_t { LED_OFF = 0, LED_TX = 1 };
 	enum ChannelAccessMode : uint8_t { CHANNEL_LBT = 0, CHANNEL_CAD = 1 };
@@ -88,6 +98,10 @@ namespace settings {
 	extern float battery_calibration;
 	// NomadNet pages; only read at boot, and only in builds that have them
 	extern bool nomadnet_enabled;
+	// Interface discovery announces; the location is only sent while enabled
+	extern bool discovery_enabled;
+	extern bool location_enabled;
+	extern double latitude, longitude, height;
 
 	// Name to show: the setting, or "Rrptr-" plus the last 4 hex digits of the
 	// transport identity

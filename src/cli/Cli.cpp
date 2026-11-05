@@ -19,6 +19,7 @@
 #include "storage/Storage.h"
 #include "log/Log.h"
 #include "console/Console.h"
+#include "discovery/Discovery.h"
 #include "neighbours/Neighbours.h"
 #include "nomadnet/NomadNet.h"
 #include "reboot/Reboot.h"
@@ -171,21 +172,25 @@ static void cmd_get_id() {
 	reply("transport %s", RNS::Transport::identity().hash().toHex().c_str());
 	reply("mgmt      %s", mgmt ? mgmt.hash().toHex().c_str() : "off");
 	reply("probe     %s", probe ? probe.hash().toHex().c_str() : "off");
+	const RNS::Destination& disc = discovery::destination();
+	reply("discovery %s", disc ? disc.hash().toHex().c_str() : "off");
 #if RRPTR_NOMADNET
 	const RNS::Destination& page = nomadnet::destination();
 	reply("nomadnet  %s", page ? page.hash().toHex().c_str() : "off");
 #endif
 }
 
-// announce [mgmt|probe|nomad]: announce now instead of waiting. microReticulum
+// announce [mgmt|probe|nomad|discovery]: announce now instead of waiting. microReticulum
 // announces mgmt and probe every 2 hours: on an established node the first is
 // straight after boot, on a new one after 2 hours of total uptime, as its clock
-// carries over reboots. NomadNet announces about 30 s after boot, then every 2 hours.
+// carries over reboots. NomadNet announces about 30 s after boot, then every 2 hours;
+// discovery, when turned on, about 30 s after boot, then every 6 hours.
 static void cmd_announce(char* arg) {
 	bool mgmt = !arg || !strcmp(arg, "mgmt");
 	bool probe = !arg || !strcmp(arg, "probe");
 	bool nomad = !arg || !strcmp(arg, "nomad");
-	if (!mgmt && !probe && !nomad) { reply("Error: announce [mgmt|probe|nomad]"); return; }
+	bool disc = !arg || !strcmp(arg, "discovery");
+	if (!mgmt && !probe && !nomad && !disc) { reply("Error: announce [mgmt|probe|nomad|discovery]"); return; }
 	if (!lora || !lora->online()) { reply("Error: radio off"); return; }
 
 	int sent = 0;
@@ -201,6 +206,12 @@ static void cmd_announce(char* arg) {
 			sent++;
 		}
 		if (nomad && nomadnet::announce()) sent++;
+		if (disc) {
+			discovery::AnnounceResult result = discovery::announce();
+			if (result == discovery::ANNOUNCE_SENT) sent++;
+			else if (result == discovery::ANNOUNCE_WAITING) reply("discovery announce will go out once its stamp is found");
+			else if (arg) { reply("Error: discovery is off"); return; }
+		}
 	}
 	catch (const std::exception& e) {
 		reply("Error: %s", e.what());
@@ -344,6 +355,40 @@ static void cmd_set(char* what, char* arg) {
 	}
 #endif
 
+	if (!strcmp(what, "discovery")) {
+		bool on;
+		if (!parse_on_off(arg, on)) { reply("Error: set discovery on|off"); return; }
+		if (Provisioner::instance().field(discovery_ns::Id, discovery_ns::Enabled, Value(on)) && commit(discovery_ns::Id)) reply("OK");
+		return;
+	}
+
+	if (!strcmp(what, "location")) {
+		Provisioner& p = Provisioner::instance();
+		if (arg && !strcmp(arg, "off")) {
+			if (p.field(discovery_ns::Id, discovery_ns::PublishLocation, Value(false)) && commit(discovery_ns::Id)) reply("OK");
+			return;
+		}
+		char* rest = arg;
+		double lat = rest ? strtod(rest, &rest) : 0;
+		bool good = arg && rest != arg && *rest == ',';
+		char* start = good ? rest + 1 : nullptr;
+		double lon = good ? strtod(start, &rest) : 0;
+		good = good && rest != start && *rest == ',';
+		start = good ? rest + 1 : nullptr;
+		double hgt = good ? strtod(start, &rest) : 0;
+		good = good && rest != start && *rest == 0;
+		if (!good || lat < -90 || lat > 90 || lon < -180 || lon > 180 || hgt < -4000 || hgt > 1e6) {
+			reply("Error: set location <lat>,<lon>,<height m> | off");
+			return;
+		}
+		p.field(discovery_ns::Id, discovery_ns::Latitude, Value((RNS::Provisioning::ffloat_t)lat));
+		p.field(discovery_ns::Id, discovery_ns::Longitude, Value((RNS::Provisioning::ffloat_t)lon));
+		p.field(discovery_ns::Id, discovery_ns::Height, Value((RNS::Provisioning::ffloat_t)hgt));
+		p.field(discovery_ns::Id, discovery_ns::PublishLocation, Value(true));
+		if (commit(discovery_ns::Id)) reply("OK");
+		return;
+	}
+
 	if (!strcmp(what, "cad")) {
 		int mode = (arg && !strcmp(arg, "on")) ? CHANNEL_CAD : (arg && !strcmp(arg, "off")) ? CHANNEL_LBT : -1;
 		if (mode < 0) { reply("Error: set cad on|off"); return; }
@@ -372,6 +417,15 @@ static void cmd_get(char* what) {
 	if (!strcmp(what, "led"))      { reply("%s", led_mode == LED_TX ? "tx" : "off"); return; }
 	if (!strcmp(what, "cad"))      { reply("%s", channel_access == CHANNEL_CAD ? "on" : "off"); return; }
 	if (!strcmp(what, "rxgain"))   { reply("%s", radio0.rx_boosted_gain ? "on" : "off"); return; }
+	if (!strcmp(what, "discovery")) {
+		reply("%s%s", discovery_enabled ? "on" : "off", discovery::busy() ? ", finding a stamp" : "");
+		return;
+	}
+	if (!strcmp(what, "location")) {
+		if (location_enabled) reply("%.6f,%.6f,%.1f", latitude, longitude, height);
+		else reply("off");
+		return;
+	}
 #if RRPTR_NOMADNET
 	if (!strcmp(what, "nomadnet")) { reply("%s", Provisioner::instance().field(nomad::Id, nomad::Enabled).as_bool() ? "on" : "off"); return; }
 #endif
@@ -469,7 +523,7 @@ static void cmd_help() {
 	reply("stats                       uptime, battery, radio and traffic counters");
 	reply("bat                         battery voltage");
 	reply("get id                      transport identity and destination hashes");
-	reply("an|announce [mgmt|probe|nomad]  announce now (default all)");
+	reply("an|announce [mgmt|probe|nomad|discovery]  announce now (default all)");
 	reply("neighbours                  nodes heard directly");
 	reply("prov [<hash> | del <hash>]  list, add or remove remote admin identities");
 	reply("set radio <MHz>,<kHz>,<SF>,<CR>[,<dBm>]");
@@ -479,6 +533,8 @@ static void cmd_help() {
 	reply("set|get led off|tx          LED on transmit");
 	reply("set|get cad on|off          scan the channel before transmit (off: listen only)");
 	reply("set|get rxgain on|off       RX boosted gain (better sensitivity, more current)");
+	reply("set|get discovery on|off    interface discovery announces");
+	reply("set|get location <lat>,<lon>,<height m> | off  location in discovery announces");
 #if RRPTR_NOMADNET
 	reply("set|get nomadnet on|off     NomadNet pages (after a reboot)");
 #endif
