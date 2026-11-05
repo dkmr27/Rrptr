@@ -1,49 +1,40 @@
 # Rrptr
 
-A bare-bones, battery-first Reticulum transport node for LoRa, built on
-[microReticulum](https://github.com/attermann/microReticulum) and
-[RadioLib](https://github.com/jgromes/RadioLib).
+A low power Reticulum transport node for LoRa, built on [microReticulum](https://github.com/attermann/microReticulum)
 
-Rrptr talks to existing RNode-based Reticulum nodes over the air. It is not an
-RNode: there is no host mode, KISS protocol or rnodeconf support. Bring-up is
-done from a serial CLI, further configuration over Reticulum.
+Development status: alpha
 
-Status: early development.
+License: MIT
 
-## Boards
+## What is Rrptr?
 
-| Env | Board | MCU | Radio |
-|---|---|---|---|
-| `promicro_sx1262` | Nologo ProMicro nRF52840 / nice!nano with SX1262 module ("FakeTec") | nRF52840 | SX1262 |
+* Rrptr is not an RNode, but Rrptr talks over LoRa to existing RNode-based Reticulum nodes.
+* Rrptr is a shell around [microReticulum](https://github.com/attermann/microReticulum) with a lean energy profile.
+* The goal is to enable building Reticulum based LoRa radio meshes with solar powered devices, in the same power consumption class as MeshCore or Meshtastic.
+* Bring-up is done from a serial CLI, further configuration over RNS can be done using the web console packed with [microReticulum_firmware](https://github.com/attermann/microReticulum_Firmware).
+
+AI disclosure: I have leveraged AI in the creation of this code, but not without an understanding what it's done. As a complete AI noob it's been an interest learning experience for me in what modern AI is capable of.
+
+## Supported Hardware
+
+| Env | Board | MCU | Radio | Idle Current |
+|---|---|---|---|---|
+| `promicro_sx1262` | ProMicro nRF52840 with SX1262 module ("FakeTec") | nRF52840 | SX1262 | 8.3 mA |
+| `xiao_nrf_sx1262` | Seeed XIAO nRF52840 with Wio-SX1262 | nRF52840 | SX1262 | |
+| `lilygo_t3s3_sx1262` | LilyGO T3S3 V1.2 SX1262 | ESP32-S3 | SX1262 | 8.8 mA |
 
 ## Building
 
+"pio run -e environment", or "pio run -e environment -t upload" to flash to the device
 ```
-pio run -e promicro_sx1262
-```
-
-## Layout
-
-```
-boards/                  PlatformIO board definitions, one per MCU board
-    bsp/<board>/         Arduino core variant files for that board (nRF52 only)
-scripts/                 build scripts (version stamping)
-src/                     firmware
-variants/<variant>/      one folder per variant (MCU board + radio)
-    board_config.h       pins, radio and hardware specifics
-    platformio.ini       the board's build env
+pio run -e xiao_nrf_sx1262
 ```
 
-## Licence
+## Acknowledgements
 
-MIT, see [LICENSE](LICENSE).
+I would like to acknowledge the following projects that either play a big part or inspired aspects of Rrptr.
 
-Third-party code keeps its own licence:
-
-- `boards/bsp/` Arduino core variant files are LGPL-2.1, from the Adafruit
-  nRF52 Arduino core templates.
-- `src/radio/` is ported from the radio HAL in
-  [openHop_modem](https://github.com/dkmr27/openhop_modem) (MIT), by the openHop_modem
-  project and its contributors; its notice is in
-  `licenses/openhop_modem.txt`.
-- microReticulum and microStore are Apache-2.0; RadioLib is MIT.
+- Chad Attermann's [microReticulum](https://github.com/attermann/microReticulum) and [microStore](https://github.com/attermann/microStore) (Apache-2.0)
+- [openHop_modem](https://github.com/dkmr27/openhop_modem) (MIT) (src/radio/ is based on the radio-hal branch from my fork)
+- [MeshCore](https://github.com/meshcore-dev/meshcore) (MIT) 
+- [RadioLib](https://github.com/jgromes/RadioLib/) (MIT)
