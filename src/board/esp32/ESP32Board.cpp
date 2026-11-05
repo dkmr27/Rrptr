@@ -107,9 +107,12 @@ uint16_t ESP32Board::battery_mv() {
 void ESP32Board::idle(uint32_t max_ms) {
 	if (!wake_sem) { delay(max_ms); return; }
 
-	// USB stops during light sleep, so stay awake while a host is attached
-	bool usb = HWCDC::isPlugged();
-	if (usb || max_ms < MIN_SLEEP_MS || (int32_t)(millis() - awake_until) < 0) {
+	// USB stops during light sleep and can need a replug after it, so stay awake
+	// while a host is attached. Its frames can go missing for a moment with the
+	// cable in, so a short gap must not allow a sleep.
+	if (HWCDC::isPlugged()) stay_awake();
+	bool awake = (int32_t)(millis() - awake_until) < 0;
+	if (awake || max_ms < MIN_SLEEP_MS) {
 		xSemaphoreTake(wake_sem, pdMS_TO_TICKS(min(max_ms, AWAKE_IDLE_MS)));
 		return;
 	}
