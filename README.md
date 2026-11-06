@@ -31,6 +31,24 @@ AI disclosure: I have leveraged AI in the creation of this code, but not without
 pio run -e xiao_nrf_sx1262
 ```
 
+### ESP32 boards: first install
+
+Rrptr and its OTA updater are separate apps. A merged image holds both, along with the bootloader and flash layout, for a first install without PlatformIO:
+```
+pio run -e lilygo_t3s3_sx1262 -t merged
+esptool.py --chip esp32s3 write_flash 0x0 rrptr-lilygo_t3s3_sx1262-merged.bin
+```
+The image is built in `.pio/build/lilygo_t3s3_sx1262/`. Flashing it leaves the filesystem alone, so a node already set up keeps its identity and settings.
+
+During development, `-t upload` only writes Rrptr. To flash the updater by itself:
+```
+pio run -e lilygo_t3s3_updater -t upload --upload-port <port>
+```
+
+## Firmware updates
+
+Run `ota` on the serial console and follow what it says. nRF52 boards update over Bluetooth from the bootloader, and ESP32 boards over an open Wi-Fi network from the updater, which anyone in range can reach while it runs.
+
 ## Acknowledgements
 
 I would like to acknowledge the following projects that either play a big part or inspired aspects of Rrptr.
