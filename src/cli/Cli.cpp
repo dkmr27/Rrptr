@@ -9,6 +9,7 @@
 
 #include <microReticulum/Transport.h>
 #include <microReticulum/Identity.h>
+#include <microReticulum/Cryptography/Random.h>
 #include <microReticulum/Provisioning/Provisioning.h>
 #include <microReticulum/Provisioning/Ids.h>
 
@@ -16,6 +17,7 @@
 #include "radio/Radio.h"
 #include "lora/LoRaInterface.h"
 #include "settings/Settings.h"
+#include "status/Status.h"
 #include "storage/Storage.h"
 #include "log/Log.h"
 #include "console/Console.h"
@@ -139,11 +141,17 @@ static void cmd_bat() {
 }
 
 static void cmd_stats() {
+	if (status::start_error()) reply("ERROR: start-up failed, only partly running: %s", status::start_error());
 	uint32_t up = millis() / 1000;
 	reply("uptime %lud %02lu:%02lu:%02lu, reset: %s", (unsigned long)(up / 86400),
 		(unsigned long)(up / 3600 % 24), (unsigned long)(up / 60 % 60), (unsigned long)(up % 60),
 		board.reset_reason());
 	reply("battery %u mV", board.battery_mv());
+	if (status::pool_size()) {
+		reply("pool free %lu of %lu bytes, lowest %lu", (unsigned long)status::pool_free(), (unsigned long)status::pool_size(),
+			(unsigned long)status::pool_lowest());
+	}
+	reply("heap free %lu bytes, lowest %lu", (unsigned long)status::heap_free(), (unsigned long)status::heap_lowest());
 	if (radio && lora) {
 		const LoRaInterface::Stats& s = lora->stats();
 		if (lora->online()) {
@@ -523,13 +531,40 @@ static void cmd_test(char* what, char* arg) {
 		return;
 	}
 #endif
+	// Fills the path table with fake entries, to measure RAM at a full table. The
+	// entries are junk that stays on flash: erase the node afterwards.
+	if (what && !strcmp(what, "paths") && arg) {
+		long count = atol(arg);
+		if (count < 1 || count > 2000) { reply("Error: test paths 1..2000"); return; }
+		if (RNS::Transport::get_interfaces().empty()) { reply("Error: no interface"); return; }
+		RNS::Interface interface = *RNS::Transport::get_interfaces().begin();
+		auto& table = const_cast<RNS::Persistence::NewPathTable&>(RNS::Transport::new_path_table());
+		reply("before: %u paths, pool free %lu, heap free %lu", (unsigned)table.size(), (unsigned long)status::pool_free(), (unsigned long)status::heap_free());
+		try {
+			for (long i = 1; i <= count; i++) {
+				double now = RNS::Utilities::OS::time();
+				// A real announce is about this long; its contents are only read from flash
+				RNS::Packet packet(RNS::Cryptography::random(170));
+				RNS::Persistence::DestinationEntry entry(now, RNS::Cryptography::random(16), 1, now + 604800,
+					std::vector<RNS::Bytes>(), interface, packet);
+				table.put(RNS::Cryptography::random(16), entry, 0);
+				if (i % 50 == 0) reply("added %ld: %u paths, pool free %lu, heap free %lu", i, (unsigned)table.size(), (unsigned long)status::pool_free(), (unsigned long)status::heap_free());
+				delay(1);
+			}
+		}
+		catch (const std::exception& e) {
+			reply("Error: %s", e.what());
+		}
+		reply("after: %u paths, pool free %lu, heap free %lu. Reboot to prove it loads, erase when done.", (unsigned)table.size(), (unsigned long)status::pool_free(), (unsigned long)status::heap_free());
+		return;
+	}
 	if (what && !strcmp(what, "uart") && arg && !strcmp(arg, "off")) {
 		if (!console.has_uart()) { reply("UART already off"); return; }
 		reply("UART off until reboot");
 		console.end_uart();
 		return;
 	}
-	reply("Error: test radio rx|standby|sleep | idle <ms> | uart off");
+	reply("Error: test radio rx|standby|sleep | idle <ms> | uart off | paths <n>");
 }
 #endif
 
@@ -564,6 +599,7 @@ static void cmd_help() {
 	reply("test radio rx|standby|sleep power test: radio state (until reboot)");
 	reply("test idle <ms>              power test: longest main loop idle (default %u)", BOARD_LOOP_IDLE_MS);
 	reply("test uart off               power test: console UART off (until reboot)");
+	reply("test paths <n>              add n fake path entries (erase afterwards)");
 #if defined(RRPTR_TEST_NOCRC)
 	reply("test tx nocrc               send one frame without CRC (receivers drop it)");
 #endif

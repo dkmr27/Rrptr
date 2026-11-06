@@ -10,7 +10,6 @@
 
 #include <microReticulum.h>
 #include <microReticulum/Provisioning/Provisioning.h>
-#include <microReticulum/Utilities/Memory.h>
 
 #include "board/Board.h"
 #include "radio/Radio.h"
@@ -25,6 +24,7 @@
 #include "neighbours/Neighbours.h"
 #include "nomadnet/NomadNet.h"
 #include "reboot/Reboot.h"
+#include "status/Status.h"
 
 using RNS::Provisioning::Provisioner;
 
@@ -71,10 +71,12 @@ static void reticulum_setup() {
 		neighbours::begin(lora_interface);
 		nomadnet::begin(radio, lora);
 		discovery::begin(lora);
-		R_INFO("Started, free RAM %lu bytes", (unsigned long)RNS::Utilities::Memory::heap_available());
+		R_INFO("Started, pool free %lu of %lu bytes, heap free %lu bytes", (unsigned long)status::pool_free(),
+			(unsigned long)status::pool_size(), (unsigned long)status::heap_free());
 	}
 	catch (const std::exception& e) {
 		R_ERROR("Reticulum setup failed: %s", e.what());
+		status::set_start_error(e.what());
 	}
 }
 
@@ -126,6 +128,7 @@ void setup() {
 
 static void greet() {
 	console.printf("\r\nRrptr %s on %s, %s\r\n", RRPTR_VERSION, board.name(), settings::node_name().c_str());
+	if (status::start_error()) console.printf("ERROR: start-up failed, only partly running: %s\r\n", status::start_error());
 	if (!radio) console.printf("radio0 init failed (%d)\r\n", radio_error);
 	else if (settings::radio0.freq_hz == 0) console.print("radio not configured: set radio <MHz>,<kHz>,<SF>,<CR>[,<dBm>]\r\n");
 	console.print("type help for commands\r\n> ");
@@ -159,6 +162,7 @@ static void storage_failed() {
 void loop() {
 	if (storage_error()) { storage_failed(); return; }
 	check_monitor();
+	status::sample();
 	cli::poll();
 	reboot::check(radio, lora);
 	display::update();

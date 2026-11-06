@@ -22,6 +22,7 @@
 #include "radio/Radio.h"
 #include "reboot/Reboot.h"
 #include "settings/Settings.h"
+#include "status/Status.h"
 
 using RNS::Bytes;
 using RNS::Identity;
@@ -145,6 +146,8 @@ static Bytes admin_page(const Bytes&, const Bytes&, const Bytes&, const Bytes&, 
 	add_uptime();
 	add("Reset: %s\n", board.reset_reason());
 	add("Battery: %u mV\n", board.battery_mv());
+	if (status::pool_size()) add("Pool free: %lu bytes, lowest %lu\n", (unsigned long)status::pool_free(), (unsigned long)status::pool_lowest());
+	add("Heap free: %lu bytes, lowest %lu\n", (unsigned long)status::heap_free(), (unsigned long)status::heap_lowest());
 	if (radio && lora && lora->online()) {
 		add("Last RSSI %.1f dBm, SNR %.2f dB\n", radio->packet_rssi(), radio->packet_snr());
 		add("Noise floor %.1f dBm\n", radio->current_rssi());
