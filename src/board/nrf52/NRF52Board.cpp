@@ -83,6 +83,15 @@ bool NRF52Board::enter_ota() {
 	return true;
 }
 
+const char* const* NRF52Board::ota_help() const {
+	static const char* const HELP[] = {
+		"This reboots into the bootloader, which advertises as AdaDFU over Bluetooth.",
+		"The node stays off the air until it is updated or reset.",
+		nullptr,
+	};
+	return HELP;
+}
+
 const char* NRF52Board::reset_reason() {
 	uint32_t r = readResetReason();
 	if (r & POWER_RESETREAS_RESETPIN_Msk) return "reset pin";

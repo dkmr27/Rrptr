@@ -14,6 +14,10 @@ public:
 	void stay_awake() override;
 	void reboot() override;
 	const char* reset_reason() override;
+	// The updater app in the second app slot, if one has been flashed
+	bool has_ota() const override;
+	bool enter_ota() override;
+	const char* const* ota_help() const override;
 };
 
 #endif

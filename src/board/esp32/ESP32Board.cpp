@@ -3,6 +3,7 @@
 #include "board/esp32/ESP32Board.h"
 
 #include <driver/gpio.h>
+#include <esp_ota_ops.h>
 #include <esp_sleep.h>
 #include <esp_system.h>
 
@@ -130,6 +131,29 @@ void IRAM_ATTR Board::wake() {
 	} else {
 		xSemaphoreGive(wake_sem);
 	}
+}
+
+bool ESP32Board::has_ota() const {
+	const esp_partition_t* updater = esp_ota_get_next_update_partition(nullptr);
+	esp_app_desc_t description;
+	return updater && esp_ota_get_partition_description(updater, &description) == ESP_OK;
+}
+
+bool ESP32Board::enter_ota() {
+	const esp_partition_t* updater = esp_ota_get_next_update_partition(nullptr);
+	if (!updater || esp_ota_set_boot_partition(updater) != ESP_OK) return false;
+	esp_restart();
+	return true;
+}
+
+const char* const* ESP32Board::ota_help() const {
+	static const char* const HELP[] = {
+		"This reboots into the updater: join the open Wi-Fi network Rrptr-update-XXXX,",
+		"then upload firmware.bin at http://192.168.4.1. Anyone in range can reach it.",
+		"The node is off the air until then, or for 10 minutes if no upload starts.",
+		nullptr,
+	};
+	return HELP;
 }
 
 void ESP32Board::reboot() {

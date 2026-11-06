@@ -452,10 +452,9 @@ static void cmd_log(char* arg) {
 
 // Leaves the node off the air until it is updated or reset, so it asks first
 static void cmd_ota(char* arg) {
-	if (!board.has_ota()) { reply("Not available on this board"); return; }
+	if (!board.has_ota()) { reply("Not available: this board has no OTA updater flashed"); return; }
 	if (!arg || strcmp(arg, "yes")) {
-		reply("This reboots into the bootloader, which advertises as AdaDFU over Bluetooth.");
-		reply("The node stays off the air until it is updated or reset.");
+		for (const char* const* help = board.ota_help(); help && *help; help++) reply("%s", *help);
 		reply("Type 'ota yes' to confirm.");
 		ota_armed = true;
 		return;
@@ -594,7 +593,7 @@ static void cmd_help() {
 	else reply("log [on|both|off]           log output (off after every boot)");
 	reply("reboot                      restart");
 	reply("erase                       factory reset (asks to confirm)");
-	if (board.has_ota()) reply("ota                         firmware update over Bluetooth (asks to confirm)");
+	if (board.has_ota()) reply("ota                         firmware update (asks to confirm)");
 #if defined(RRPTR_DEBUG_LOG)
 	reply("test radio rx|standby|sleep power test: radio state (until reboot)");
 	reply("test idle <ms>              power test: longest main loop idle (default %u)", BOARD_LOOP_IDLE_MS);

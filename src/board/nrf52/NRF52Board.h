@@ -13,6 +13,7 @@ public:
 	void reboot() override;
 	bool has_ota() const override { return true; }
 	bool enter_ota() override;
+	const char* const* ota_help() const override;
 	const char* reset_reason() override;
 	const char* bootloader_version() override;
 };
