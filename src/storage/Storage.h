@@ -13,6 +13,11 @@
 // Returns false if it could not be mounted, with the reason in storage_error().
 bool storage_begin();
 
+// Deletes a packet hashlist too big to load into RAM, left by a build with larger
+// segments. It only filters duplicate packets for a while, so losing it is harmless.
+// Call once the filesystem is registered and before microReticulum starts.
+void storage_trim_hashlist();
+
 microStore::FileSystem& storage_filesystem();
 
 // Where the files live, for status output, e.g. "W25Q128 16384 KB"

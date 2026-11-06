@@ -10,6 +10,7 @@
 
 #include <microReticulum.h>
 #include <microReticulum/Provisioning/Provisioning.h>
+#include <microReticulum/Utilities/Memory.h>
 
 #include "board/Board.h"
 #include "radio/Radio.h"
@@ -70,6 +71,7 @@ static void reticulum_setup() {
 		neighbours::begin(lora_interface);
 		nomadnet::begin(radio, lora);
 		discovery::begin(lora);
+		R_INFO("Started, free RAM %lu bytes", (unsigned long)RNS::Utilities::Memory::heap_available());
 	}
 	catch (const std::exception& e) {
 		R_ERROR("Reticulum setup failed: %s", e.what());
@@ -85,6 +87,7 @@ void setup() {
 	// nothing else starts; loop() keeps reporting the error
 	if (!storage_begin()) return;
 	RNS::Utilities::OS::register_filesystem(storage_filesystem());
+	storage_trim_hashlist();
 
 	// A transport node's defaults. These must be set before the provisioning
 	// engine starts: its General Config fields take their defaults from these

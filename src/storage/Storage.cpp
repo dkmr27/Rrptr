@@ -67,6 +67,21 @@ bool storage_begin() {
 #endif
 }
 
+void storage_trim_hashlist() {
+	// About 250 entries of 33 bytes; a store at its normal size stays below this
+	static const size_t INDEX_MAX = 8192;
+	static const char* const INDEX = "./hashlist_store/index.dat";
+	if (!filesystem.exists(INDEX)) return;
+	size_t size = filesystem.size(INDEX);
+	if (size <= INDEX_MAX) return;
+	R_WARNING("Storage: packet hashlist index is %u bytes, too big to load, deleting it", (unsigned)size);
+	static const char* const FILES[] = { "./hashlist_store/seg0.dat", "./hashlist_store/seg1.dat",
+		"./hashlist_store/journal.dat", "./hashlist_store/compact.tmp", INDEX };
+	for (const char* file : FILES) {
+		if (filesystem.exists(file)) filesystem.remove(file);
+	}
+}
+
 microStore::FileSystem& storage_filesystem() { return filesystem; }
 const char* storage_description() { return description; }
 const char* storage_error() { return error; }
