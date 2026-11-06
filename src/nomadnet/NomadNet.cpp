@@ -15,10 +15,12 @@
 #include <microReticulum/Provisioning/Ids.h>
 
 #include "board/Board.h"
+#include "discovery/Discovery.h"
 #include "log/Log.h"
 #include "lora/LoRaInterface.h"
 #include "neighbours/Neighbours.h"
 #include "radio/Radio.h"
+#include "reboot/Reboot.h"
 #include "settings/Settings.h"
 
 using RNS::Bytes;
@@ -33,11 +35,17 @@ static const uint32_t ANNOUNCE_INTERVAL_MS = 2UL * 60 * 60 * 1000;
 static const uint32_t BOOT_ANNOUNCE_DELAY_MS = 30000;
 static const uint32_t BOOT_ANNOUNCE_JITTER_STEP_MS = 60;   // times a random byte
 static const size_t HEADER_LEN = 3;     // msgpack bin16 header
+// A link is a request, so a reload repeats its action: limit what that can cost
+static const uint32_t ANNOUNCE_COOLDOWN_MS = 30000;
 
 static RNS::Destination dest(RNS::Type::NONE);
 static Radio* radio = nullptr;
 static LoRaInterface* lora = nullptr;
 static uint32_t next_announce = 0;     // millis
+// The reboot link's path has a part chosen at boot. It stops working once the
+// node has rebooted, so a reload cannot reboot it again, and another node's page
+// cannot carry a working link to it.
+static char reboot_path[32];
 
 // One page is built at a time, as requests are handled in the main loop
 static char page[1400];
@@ -152,6 +160,7 @@ static Bytes admin_page(const Bytes&, const Bytes&, const Bytes&, const Bytes&, 
 		(unsigned)Identity::known_destinations().size(), (unsigned)RNS::Transport::announce_table().size(),
 		(unsigned)RNS::Transport::active_links().size());
 	add("\n`[Heard neighbours`:/page/neighbours.mu]\n");
+	add("`[Controls`:/page/controls.mu]\n");
 	add_back_link();
 	return finish_page();
 }
@@ -171,6 +180,114 @@ static Bytes neighbours_page(const Bytes&, const Bytes&, const Bytes&, const Byt
 	return finish_page();
 }
 
+// ─── Controls ───────────────────────────────────────────────
+enum AnnounceType { AN_MGMT, AN_PROBE, AN_NOMAD, AN_DISCOVERY, AN_COUNT };
+static const char* const ANNOUNCE_LABEL[AN_COUNT] = { "Management", "Probe", "NomadNet", "Discovery" };
+static uint32_t last_sent[AN_COUNT];
+static bool sent_before[AN_COUNT];
+
+// Sends one announce unless it was sent moments ago; returns what happened
+static const char* send_announce(AnnounceType type) {
+	if (!lora || !lora->online()) return "radio off";
+	if (sent_before[type] && millis() - last_sent[type] < ANNOUNCE_COOLDOWN_MS) return "sent recently, not repeated";
+	const char* result = "queued";
+	try {
+		switch (type) {
+		case AN_MGMT: {
+			RNS::Destination d = RNS::Transport::remote_management_destination();
+			if (!d) return "off";
+			d.announce();
+			break;
+		}
+		case AN_PROBE: {
+			RNS::Destination d = RNS::Transport::probe_destination();
+			if (!d) return "off";
+			d.announce();
+			break;
+		}
+		case AN_NOMAD:
+			announce();
+			break;
+		case AN_DISCOVERY:
+			switch (discovery::announce()) {
+			case discovery::ANNOUNCE_OFF: return "off";
+			case discovery::ANNOUNCE_WAITING: result = "goes out once its stamp is found"; break;
+			default: break;
+			}
+			break;
+		default:
+			return "unknown";
+		}
+	}
+	catch (const std::exception& e) {
+		R_WARNING("NomadNet: announce failed: %s", e.what());
+		return "failed";
+	}
+	last_sent[type] = millis();
+	sent_before[type] = true;
+	return result;
+}
+
+static void add_controls_link() { add("\n`[Back to controls`:/page/controls.mu]\n"); }
+
+// The announces from `first` to `last`, and a page saying how each went
+static Bytes announce_page(const Identity& identity, AnnounceType first, AnnounceType last) {
+	if (!is_admin(identity)) return denied_page(identity);
+	start_page("Announce");
+	for (int t = first; t <= last; t++) {
+		const char* result = send_announce((AnnounceType)t);
+		add("%s: %s\n", ANNOUNCE_LABEL[t], result);
+	}
+	add_controls_link();
+	return finish_page();
+}
+
+static Bytes announce_all_page(const Bytes&, const Bytes&, const Bytes&, const Bytes&, const Identity& identity, double) {
+	return announce_page(identity, AN_MGMT, AN_DISCOVERY);
+}
+static Bytes announce_mgmt_page(const Bytes&, const Bytes&, const Bytes&, const Bytes&, const Identity& identity, double) {
+	return announce_page(identity, AN_MGMT, AN_MGMT);
+}
+static Bytes announce_probe_page(const Bytes&, const Bytes&, const Bytes&, const Bytes&, const Identity& identity, double) {
+	return announce_page(identity, AN_PROBE, AN_PROBE);
+}
+static Bytes announce_nomad_page(const Bytes&, const Bytes&, const Bytes&, const Bytes&, const Identity& identity, double) {
+	return announce_page(identity, AN_NOMAD, AN_NOMAD);
+}
+static Bytes announce_discovery_page(const Bytes&, const Bytes&, const Bytes&, const Bytes&, const Identity& identity, double) {
+	return announce_page(identity, AN_DISCOVERY, AN_DISCOVERY);
+}
+
+static Bytes controls_page(const Bytes&, const Bytes&, const Bytes&, const Bytes&, const Identity& identity, double) {
+	if (!is_admin(identity)) return denied_page(identity);
+	start_page("Controls");
+	add("`[Announce: all`:/page/announce_all.mu]\n");
+	add("`[Announce: management`:/page/announce_mgmt.mu]\n");
+	add("`[Announce: probe`:/page/announce_probe.mu]\n");
+	add("`[Announce: NomadNet`:/page/announce_nomad.mu]\n");
+	if (settings::discovery_enabled) add("`[Announce: discovery`:/page/announce_discovery.mu]\n");
+	add("\n`[Reboot`:/page/reboot.mu]\n");
+	add("\n`[Back to admin statistics`:/page/admin.mu]\n");
+	return finish_page();
+}
+
+static Bytes reboot_confirm_page(const Bytes&, const Bytes&, const Bytes&, const Bytes&, const Identity& identity, double) {
+	if (!is_admin(identity)) return denied_page(identity);
+	start_page("Reboot");
+	add("Reboot this node? Links to it will close.\n\n");
+	add("`[Yes, reboot now`:%s]\n", reboot_path);
+	add("`[Cancel`:/page/controls.mu]\n");
+	return finish_page();
+}
+
+static Bytes reboot_page(const Bytes&, const Bytes&, const Bytes&, const Bytes&, const Identity& identity, double) {
+	if (!is_admin(identity)) return denied_page(identity);
+	reboot::request();
+	start_page("Rebooting");
+	add("The node is rebooting. This link will close.\n");
+	return finish_page();
+}
+
 // ─── Set-up and announcing ──────────────────────────────────
 void begin(Radio* r, LoRaInterface* l) {
 	if (!settings::nomadnet_enabled) return;
@@ -183,6 +300,15 @@ void begin(Radio* r, LoRaInterface* l) {
 	dest.register_request_handler("/page/stats.mu", stats_page, allow);
 	dest.register_request_handler("/page/admin.mu", admin_page, allow);
 	dest.register_request_handler("/page/neighbours.mu", neighbours_page, allow);
+	dest.register_request_handler("/page/controls.mu", controls_page, allow);
+	dest.register_request_handler("/page/announce_all.mu", announce_all_page, allow);
+	dest.register_request_handler("/page/announce_mgmt.mu", announce_mgmt_page, allow);
+	dest.register_request_handler("/page/announce_probe.mu", announce_probe_page, allow);
+	dest.register_request_handler("/page/announce_nomad.mu", announce_nomad_page, allow);
+	dest.register_request_handler("/page/announce_discovery.mu", announce_discovery_page, allow);
+	dest.register_request_handler("/page/reboot.mu", reboot_confirm_page, allow);
+	snprintf(reboot_path, sizeof(reboot_path), "/page/reboot_%s.mu", RNS::Cryptography::random(3).toHex().c_str());
+	dest.register_request_handler(reboot_path, reboot_page, allow);
 	next_announce = millis() + BOOT_ANNOUNCE_DELAY_MS
 		+ RNS::Cryptography::random(1).data()[0] * BOOT_ANNOUNCE_JITTER_STEP_MS;
 	R_INFO("NomadNet page on %s", dest.hash().toHex().c_str());

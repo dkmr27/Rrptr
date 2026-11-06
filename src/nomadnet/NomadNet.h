@@ -2,8 +2,9 @@
 // any NomadNet client. The destination is nomadnetwork.node on the transport
 // identity and its announces carry the node name.
 //
-// Pages: a front page, general statistics for anyone, and admin statistics and
-// heard neighbours for identities on the remote management list.
+// Pages: a front page, general statistics for anyone, and admin statistics, heard
+// neighbours and controls (announces, reboot) for identities on the remote
+// management list.
 //
 // In by default; build with -DRRPTR_NOMADNET=0 to leave it out. A build that has
 // it can still turn it off with the Enabled setting (takes effect after a reboot).
