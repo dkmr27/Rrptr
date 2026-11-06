@@ -4,6 +4,7 @@
 #include <set>
 
 #include <microReticulum/Link.h>
+#include <microReticulum/Reticulum.h>
 #include <microReticulum/Transport.h>
 
 #include "board/Board.h"
@@ -23,6 +24,11 @@ static bool requested = false;
 static bool links_closed = false;
 static bool into_ota = false;
 static uint32_t requested_at = 0;
+
+// writeTimeOffset() is protected in the library
+struct Clock : RNS::Reticulum {
+	static void save() { writeTimeOffset(); }
+};
 
 void request() {
 	if (requested) return;
@@ -62,6 +68,9 @@ void check(Radio* radio, LoRaInterface* lora) {
 	bool sent = !lora || !radio || (lora->queued() == 0 && !radio->transmitting());
 	if ((waited >= MIN_WAIT_MS && sent) || waited >= MAX_WAIT_MS) {
 		R_INFO(into_ota ? "Rebooting into OTA update mode" : "Rebooting");
+		// The clock is otherwise saved every 10 minutes. If it went back across the
+		// reboot, the stores would delete recent records as being from the future.
+		Clock::save();
 		console.flush();
 		if (into_ota) board.enter_ota();
 		board.reboot();
