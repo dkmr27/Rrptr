@@ -355,6 +355,15 @@ static void cmd_set(char* what, char* arg) {
 		return;
 	}
 
+#if RADIO0_TXEN_LNA_BYPASS
+	if (!strcmp(what, "lna")) {
+		bool on;
+		if (!parse_on_off(arg, on)) { reply("Error: set lna on|off"); return; }
+		if (Provisioner::instance().field(radio::Id0, radio::FemLna, Value(on)) && commit(radio::Id0)) reply("OK");
+		return;
+	}
+#endif
+
 #if RRPTR_NOMADNET
 	if (!strcmp(what, "nomadnet")) {
 		bool on;
@@ -426,6 +435,9 @@ static void cmd_get(char* what) {
 	if (!strcmp(what, "led"))      { reply("%s", led_mode == LED_TX ? "tx" : "off"); return; }
 	if (!strcmp(what, "cad"))      { reply("%s", channel_access == CHANNEL_CAD ? "on" : "off"); return; }
 	if (!strcmp(what, "rxgain"))   { reply("%s", radio0.rx_boosted_gain ? "on" : "off"); return; }
+#if RADIO0_TXEN_LNA_BYPASS
+	if (!strcmp(what, "lna"))      { reply("%s", radio0.fem_lna ? "on" : "off"); return; }
+#endif
 	if (!strcmp(what, "discovery")) {
 		reply("%s%s", discovery_enabled ? "on" : "off", discovery::busy() ? ", finding a stamp" : "");
 		return;
@@ -583,6 +595,9 @@ static void cmd_help() {
 	reply("set|get led off|tx          LED on transmit");
 	reply("set|get cad on|off          scan the channel before transmit (off: listen only)");
 	reply("set|get rxgain on|off       RX boosted gain (better sensitivity, more current)");
+#if RADIO0_TXEN_LNA_BYPASS
+	reply("set|get lna on|off          front-end module's receive LNA (off: bypassed)");
+#endif
 	reply("set|get discovery on|off    interface discovery announces");
 	reply("set|get location <lat>,<lon>,<height m> | off  location in discovery announces");
 #if RRPTR_NOMADNET

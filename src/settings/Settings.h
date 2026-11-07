@@ -59,7 +59,8 @@ namespace settings {
 		constexpr uint16_t Preamble = 7;
 		constexpr uint16_t RxBoostedGain = 8;
 		constexpr uint16_t ChannelAccess = 9;
-		// next-id: 10
+		constexpr uint16_t FemLna = 10;            // only on boards that can bypass it
+		// next-id: 11
 	}
 	namespace power {
 		constexpr uint16_t Id = 210;

@@ -96,6 +96,18 @@ int16_t SX1262Radio::chip_set_modem(const RadioConfig& c) {
 	if ((state = _chip.setPreambleLength(c.preamble_len)) != RADIOLIB_ERR_NONE) return state;
 	if ((state = _chip.explicitHeader()) != RADIOLIB_ERR_NONE) return state;
 	if ((state = _chip.setRxBoostedGainMode(c.rx_boosted_gain)) != RADIOLIB_ERR_NONE) return state;
+	if (_pins.txen_lna_bypass && _pins.txen >= 0) {
+		// LNA on: RadioLib drives TXEN, low while receiving. Off: TXEN is held
+		// high, which bypasses the front-end's LNA and still lets it transmit.
+		uint32_t rxen = _pins.rxen >= 0 ? (uint32_t)_pins.rxen : RADIOLIB_NC;
+		if (c.fem_lna) {
+			_chip.setRfSwitchPins(rxen, (uint32_t)_pins.txen);
+		} else {
+			_chip.setRfSwitchPins(rxen, RADIOLIB_NC);
+			pinMode(_pins.txen, OUTPUT);
+			digitalWrite(_pins.txen, HIGH);
+		}
+	}
 	return _chip.setCRC(2);
 }
 

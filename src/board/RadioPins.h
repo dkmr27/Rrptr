@@ -26,6 +26,14 @@
 #ifndef RADIO0_RX_BOOSTED_GAIN
 	#define RADIO0_RX_BOOSTED_GAIN 0
 #endif
+// 1 = TXEN also bypasses a front-end module's receive LNA: held high while
+// receiving, the LNA is bypassed (the FEM LNA setting)
+#ifndef RADIO0_TXEN_LNA_BYPASS
+	#define RADIO0_TXEN_LNA_BYPASS 0
+#endif
+#ifndef RADIO1_TXEN_LNA_BYPASS
+	#define RADIO1_TXEN_LNA_BYPASS 0
+#endif
 #ifndef RADIO1_CURRENT_LIMIT_MA
 	#define RADIO1_CURRENT_LIMIT_MA 0
 #endif
@@ -43,6 +51,7 @@ struct RadioPins {
 	int8_t  max_power_dbm;
 	uint8_t current_limit_ma;   // PA over-current limit, 0 = chip default
 	bool    rx_boosted_gain;   // default for the RX boosted gain setting
+	bool    txen_lna_bypass;   // see RADIOn_TXEN_LNA_BYPASS
 };
 
 #define RADIO_PINS(n) { \
@@ -52,7 +61,8 @@ struct RadioPins {
 	RADIO##n##_TCXO_VOLTS, RADIO##n##_DIO2_RF_SWITCH, \
 	RADIO##n##_RXEN, RADIO##n##_TXEN, \
 	RADIO##n##_MAX_POWER_DBM, \
-	RADIO##n##_CURRENT_LIMIT_MA, RADIO##n##_RX_BOOSTED_GAIN }
+	RADIO##n##_CURRENT_LIMIT_MA, RADIO##n##_RX_BOOSTED_GAIN, \
+	RADIO##n##_TXEN_LNA_BYPASS }
 
 static const RadioPins radio_pins[RADIO_COUNT] = {
 	RADIO_PINS(0),

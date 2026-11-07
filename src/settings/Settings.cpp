@@ -18,7 +18,7 @@ std::string name;
 uint8_t led_mode = LED_TX;
 RadioConfig radio0 = {
 	RRPTR_DEFAULT_FREQ_HZ, RRPTR_DEFAULT_BW_HZ, RRPTR_DEFAULT_SF, RRPTR_DEFAULT_CR,
-	RRPTR_DEFAULT_TX_DBM, 0x12, RRPTR_DEFAULT_PREAMBLE, RADIO0_RX_BOOSTED_GAIN,
+	RRPTR_DEFAULT_TX_DBM, 0x12, RRPTR_DEFAULT_PREAMBLE, RADIO0_RX_BOOSTED_GAIN, true,
 };
 uint16_t agc_reset_minutes = 0;
 uint8_t channel_access = CHANNEL_LBT;
@@ -134,6 +134,11 @@ void register_namespaces() {
 		.field_bool("RX Boosted Gain", radio::RxBoostedGain, FF_LIVE_APPLY, RADIO0_RX_BOOSTED_GAIN,
 			[](const Value& v) { radio0.rx_boosted_gain = v.as_bool(); radio_changed = true; return true; },
 			[]() { return radio0.rx_boosted_gain; })
+#if RADIO0_TXEN_LNA_BYPASS
+		.field_bool("FEM LNA", radio::FemLna, FF_LIVE_APPLY, true,
+			[](const Value& v) { radio0.fem_lna = v.as_bool(); radio_changed = true; return true; },
+			[]() { return radio0.fem_lna; })
+#endif
 		.field_enum("Channel Access", radio::ChannelAccess, FF_LIVE_APPLY, CHANNEL_LBT,
 			{ CHANNEL_LBT, CHANNEL_CAD }, { "lbt", "cad" },
 			[](const Value& v) { channel_access = v.as_int(); return true; },

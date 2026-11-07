@@ -56,4 +56,5 @@ struct RadioConfig {
 	uint8_t  sync_word;
 	uint16_t preamble_len;
 	bool     rx_boosted_gain;   // better sensitivity, more receive current
+	bool     fem_lna;           // front-end module's receive LNA, on boards that can bypass it
 };

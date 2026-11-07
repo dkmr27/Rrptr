@@ -64,6 +64,7 @@
 #define RADIO0_DIO2_RF_SWITCH 1         // DIO2 switches the front-end module
 #define RADIO0_RXEN           -1
 #define RADIO0_TXEN           5         // KCT8103L CTX: high to transmit, low for its receive LNA
+#define RADIO0_TXEN_LNA_BYPASS 1        // held high instead, it bypasses the LNA (`lna off`); V4.3 only
 #define RADIO0_MAX_POWER_DBM  22        // chip power ceiling; the front-end module adds about 7-11 dB
 #define RADIO0_CURRENT_LIMIT_MA 140     // PA over-current limit needed for 22 dBm
 #define RADIO0_RX_BOOSTED_GAIN  1       // default for `rxgain`
