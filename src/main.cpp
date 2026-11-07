@@ -168,7 +168,20 @@ void loop() {
 	display::update();
 	if (!radio) { board.idle(10); return; }
 
-	if (settings::take_radio_changed()) apply_radio();
+	// Applying new radio settings resets the radio, which would cut off a frame
+	// being sent, such as the reply to the change itself. So it waits until
+	// nothing is going out, for up to 10 s.
+	static bool radio_pending = false;
+	static uint32_t radio_pending_at = 0;
+	if (settings::take_radio_changed()) {
+		radio_pending = true;
+		radio_pending_at = millis();
+	}
+	if (radio_pending && ((!radio->transmitting() && !(lora && lora->queued()))
+			|| millis() - radio_pending_at >= 10000)) {
+		radio_pending = false;
+		apply_radio();
+	}
 
 	// Periodic AGC reset, between frames
 	static uint32_t last_agc = millis();
