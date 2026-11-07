@@ -22,6 +22,8 @@ AI disclosure: I have leveraged AI in the creation of this code, but not without
 | `promicro_sx1262` | ProMicro nRF52840 with SX1262 module ("FakeTec") + 25Q32/64/128 flash | nRF52840 | SX1262 | 8.3 mA |
 | `xiao_nrf_sx1262` | Seeed XIAO nRF52840 with Wio-SX1262 | nRF52840 | SX1262 | |
 | `lilygo_t3s3_sx1262` | LilyGO T3S3 V1.2 SX1262 | ESP32-S3 | SX1262 | 8.8 mA |
+| `xiao_s3_sx1262` | Seeed XIAO ESP32-S3 (8 MB flash) + Wio-SX1262 kit, joined by the B2B connector | ESP32-S3 | SX1262 | 7.3 mA |
+| `xiao_s3_sx1262_alt` | Seeed XIAO ESP32-S3 (8 MB flash) + SX1262 on the outer pins, wired as on the XIAO nRF52840 kit | ESP32-S3 | SX1262 | 7.3 mA |
 | `rak4631_sx1262` | RAK4631 with RAK15001 flash (required), not yet tested on hardware | nRF52840 | SX1262 | |
 
 ## Building
