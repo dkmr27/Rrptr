@@ -9,6 +9,14 @@ void Board::begin() {
 	pinMode(BOARD_RAIL_EN, OUTPUT);
 	digitalWrite(BOARD_RAIL_EN, BOARD_RAIL_ACTIVE_HIGH ? HIGH : LOW);
 #endif
+#if defined(BOARD_PINS_HIGH)
+	// Pins held high from boot, such as a radio front-end's enables
+	static const uint8_t pins_high[] = BOARD_PINS_HIGH;
+	for (uint8_t pin : pins_high) {
+		pinMode(pin, OUTPUT);
+		digitalWrite(pin, HIGH);
+	}
+#endif
 #if BOARD_LED >= 0
 	pinMode(BOARD_LED, OUTPUT);
 	led(false);
