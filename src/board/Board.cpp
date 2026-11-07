@@ -1,9 +1,13 @@
 #include "board/Board.h"
 
+#ifndef BOARD_RAIL_ACTIVE_HIGH
+	#define BOARD_RAIL_ACTIVE_HIGH 1
+#endif
+
 void Board::begin() {
 #if BOARD_RAIL_EN >= 0
 	pinMode(BOARD_RAIL_EN, OUTPUT);
-	digitalWrite(BOARD_RAIL_EN, HIGH);
+	digitalWrite(BOARD_RAIL_EN, BOARD_RAIL_ACTIVE_HIGH ? HIGH : LOW);
 #endif
 #if BOARD_LED >= 0
 	pinMode(BOARD_LED, OUTPUT);

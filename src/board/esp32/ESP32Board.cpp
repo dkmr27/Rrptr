@@ -59,7 +59,10 @@ static void light_sleep(uint32_t max_ms) {
 	bool uart = console.has_uart();
 	if (uart) {
 		gpio_pullup_en((gpio_num_t)BOARD_UART_RX);
-		gpio_wakeup_enable((gpio_num_t)BOARD_UART_RX, GPIO_INTR_LOW_LEVEL);
+		// A line held low has nothing driving it high, such as the Heltec V3's
+		// USB serial chip with USB unplugged: waking on it would stop all sleep
+		uart = gpio_get_level((gpio_num_t)BOARD_UART_RX) == 1;
+		if (uart) gpio_wakeup_enable((gpio_num_t)BOARD_UART_RX, GPIO_INTR_LOW_LEVEL);
 	}
 #endif
 	esp_sleep_enable_gpio_wakeup();
@@ -96,9 +99,22 @@ SPIClass& ESP32Board::radio_spi(uint8_t index) {
 
 uint16_t ESP32Board::battery_mv() {
 #if BOARD_VBAT >= 0
+#if defined(BOARD_VBAT_EN)
+	// The enable's polarity differs between board revisions, so take it from the
+	// pin's resting level, as MeshCore and its contributors do. Released afterwards
+	// so the divider draws nothing between readings.
+	pinMode(BOARD_VBAT_EN, INPUT);
+	int resting = digitalRead(BOARD_VBAT_EN);
+	pinMode(BOARD_VBAT_EN, OUTPUT);
+	digitalWrite(BOARD_VBAT_EN, resting == HIGH ? LOW : HIGH);
+	delay(10);
+#endif
 	// analogReadMilliVolts() applies the chip's factory ADC calibration
 	uint32_t sum = 0;
 	for (int i = 0; i < 4; i++) sum += analogReadMilliVolts(BOARD_VBAT);
+#if defined(BOARD_VBAT_EN)
+	pinMode(BOARD_VBAT_EN, INPUT);
+#endif
 	return (uint16_t)((sum / 4.0f) * BOARD_VBAT_DIVIDER * _vbat_calibration + 0.5f);
 #else
 	return 0;
@@ -162,7 +178,7 @@ void ESP32Board::reboot() {
 
 const char* ESP32Board::reset_reason() {
 	switch (esp_reset_reason()) {
-	case ESP_RST_POWERON:   return "power on";
+	case ESP_RST_POWERON:   return "power on or reset pin";  // the chip reports both alike
 	case ESP_RST_EXT:       return "reset pin";
 	case ESP_RST_SW:        return "software";
 	case ESP_RST_PANIC:     return "panic";
