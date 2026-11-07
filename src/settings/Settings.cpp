@@ -102,7 +102,7 @@ void register_namespaces() {
 	p.register_namespace("Rrptr Node", node::Id)
 		.field_string("Name", node::Name, FF_LIVE_APPLY, "", 32,
 			[](const Value& v) { name = v.as_string(); return true; },
-			[]() { return name; })
+			[]() { return node_name(); })  // so a new node's web console shows the name in use
 		.field_enum("LED Mode", node::LedMode, FF_LIVE_APPLY, LED_TX,
 			{ LED_OFF, LED_TX }, { "off", "tx" },
 			[](const Value& v) { led_mode = v.as_int(); board.set_tx_led(led_mode == LED_TX); return true; },
