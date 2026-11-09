@@ -4,6 +4,9 @@
 #if RADIO_USES(RADIO_CHIP_SX1262)
 #include "radio/sx126x/SX1262Radio.h"
 #endif
+#if RADIO_USES(RADIO_CHIP_LR1121)
+#include "radio/lr11x0/LR1121Radio.h"
+#endif
 #if RADIO_USES(RADIO_CHIP_LR2021)
 #include "radio/lr2021/LR2021Radio.h"
 #endif
@@ -40,6 +43,9 @@ Radio* radio_create(uint8_t index, SPIClass& spi) {
 	switch (pins.chip) {
 #if RADIO_USES(RADIO_CHIP_SX1262)
 	case RADIO_CHIP_SX1262: return new SX1262Radio(index, pins, spi);
+#endif
+#if RADIO_USES(RADIO_CHIP_LR1121)
+	case RADIO_CHIP_LR1121: return new LR1121Radio(index, pins, spi);
 #endif
 #if RADIO_USES(RADIO_CHIP_LR2021)
 	case RADIO_CHIP_LR2021: return new LR2021Radio(index, pins, spi);
