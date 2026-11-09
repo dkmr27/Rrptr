@@ -1,7 +1,7 @@
 // RAK4631 WisBlock core (nRF52840 + SX1262) on a RAK19007 base, with a RAK15001
 // flash module, which Rrptr needs for its storage. In any sensor slot.
 //
-// Not yet tested on hardware. Pins are from RAK's documentation, MeshCore and
+// Tested on hardware. Pins are from RAK's documentation, MeshCore and
 // microReticulum_Firmware, which agree.
 //
 // Pins, radio type and other hardware specifics for this variant. Pin numbers
