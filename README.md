@@ -26,6 +26,7 @@ AI disclosure: I have leveraged AI in the creation of this code, but not without
 | `xiao_s3_sx1262_alt` | Seeed XIAO ESP32-S3 (8 MB flash) + SX1262 on the outer pins, wired as on the XIAO nRF52840 kit | ESP32-S3 | SX1262 | 7.3 mA |
 | `heltec_v3_sx1262` | Heltec WiFi LoRa 32 V3 | ESP32-S3 | SX1262 | 11.5 mA |
 | `heltec_v4_sx1262` | Heltec WiFi LoRa 32 V4 (not the V4R8) | ESP32-S3 | SX1262 | 14.5 mA |
+| `heltec_v4r8_sx1262` | Heltec WiFi LoRa 32 V4 R8 | ESP32-S3 | SX1262 | 18.4 mA |
 | `rak4631_sx1262` | RAK4631 with RAK15001 flash (required) | nRF52840 | SX1262 | |
 
 TX power is always the radio chip's drive power. Boards with a front-end module, such as the Heltec V4, put out more at the antenna: about 7 to 11 dB more on the V4, so 22 dBm gives about 28 dBm.
