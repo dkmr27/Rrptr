@@ -4,6 +4,9 @@
 #if RADIO_USES(RADIO_CHIP_SX1262)
 #include "radio/sx126x/SX1262Radio.h"
 #endif
+#if RADIO_USES(RADIO_CHIP_LR2021)
+#include "radio/lr2021/LR2021Radio.h"
+#endif
 
 // ─── Interrupts ─────────────────────────────────────────────
 // RadioLib takes a plain function for DIO1, so each radio slot gets its own.
@@ -38,15 +41,16 @@ Radio* radio_create(uint8_t index, SPIClass& spi) {
 #if RADIO_USES(RADIO_CHIP_SX1262)
 	case RADIO_CHIP_SX1262: return new SX1262Radio(index, pins, spi);
 #endif
+#if RADIO_USES(RADIO_CHIP_LR2021)
+	case RADIO_CHIP_LR2021: return new LR2021Radio(index, pins, spi);
+#endif
 	default: return nullptr;
 	}
 }
 
 // ─── Capabilities ───────────────────────────────────────────
 int8_t Radio::board_ceiling(RadioBand band) const {
-	// Boards only state a sub-GHz ceiling so far; 2.4 GHz gets one with the first
-	// dual-band board.
-	return band == RadioBand::SubGhz ? _pins.max_power_dbm : RADIO_POWER_NONE;
+	return band == RadioBand::SubGhz ? _pins.max_power_dbm : _pins.max_power_2g4_dbm;
 }
 
 const RadioBandInfo* Radio::band_info(RadioBand band) const {

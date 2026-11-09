@@ -26,6 +26,13 @@
 #ifndef RADIO0_RX_BOOSTED_GAIN
 	#define RADIO0_RX_BOOSTED_GAIN 0
 #endif
+// 2.4 GHz drive ceiling, on chips with that band. Unset: the band is not used.
+#ifndef RADIO0_MAX_POWER_2G4_DBM
+	#define RADIO0_MAX_POWER_2G4_DBM (-128)
+#endif
+#ifndef RADIO1_MAX_POWER_2G4_DBM
+	#define RADIO1_MAX_POWER_2G4_DBM (-128)
+#endif
 // 1 = TXEN also bypasses a front-end module's receive LNA: held high while
 // receiving, the LNA is bypassed (the FEM LNA setting)
 #ifndef RADIO0_TXEN_LNA_BYPASS
@@ -48,7 +55,8 @@ struct RadioPins {
 	float   tcxo_volts;         // 0 = crystal
 	bool    dio2_rf_switch;
 	int8_t  rxen, txen;         // -1 = not used
-	int8_t  max_power_dbm;
+	int8_t  max_power_dbm;      // sub-GHz drive ceiling
+	int8_t  max_power_2g4_dbm;  // 2.4 GHz drive ceiling, -128 = band not used
 	uint8_t current_limit_ma;   // PA over-current limit, 0 = chip default
 	bool    rx_boosted_gain;   // default for the RX boosted gain setting
 	bool    txen_lna_bypass;   // see RADIOn_TXEN_LNA_BYPASS
@@ -60,7 +68,7 @@ struct RadioPins {
 	RADIO##n##_CS, RADIO##n##_RESET, RADIO##n##_BUSY, RADIO##n##_DIO1, \
 	RADIO##n##_TCXO_VOLTS, RADIO##n##_DIO2_RF_SWITCH, \
 	RADIO##n##_RXEN, RADIO##n##_TXEN, \
-	RADIO##n##_MAX_POWER_DBM, \
+	RADIO##n##_MAX_POWER_DBM, RADIO##n##_MAX_POWER_2G4_DBM, \
 	RADIO##n##_CURRENT_LIMIT_MA, RADIO##n##_RX_BOOSTED_GAIN, \
 	RADIO##n##_TXEN_LNA_BYPASS }
 
