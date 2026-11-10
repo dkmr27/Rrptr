@@ -3,8 +3,7 @@
 *.map
 
 # Editors
-.vscode/*
-!.vscode/extensions.json
+.vscode/
 
 # Per-machine build overrides
 platformio.local*.ini
