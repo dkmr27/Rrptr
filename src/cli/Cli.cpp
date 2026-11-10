@@ -178,14 +178,15 @@ static void cmd_get_id() {
 	if (!RNS::Transport::identity()) { reply("Error: no identity yet"); return; }
 	const RNS::Destination& mgmt = RNS::Transport::remote_management_destination();
 	const RNS::Destination& probe = RNS::Transport::probe_destination();
-	reply("transport %s", RNS::Transport::identity().hash().toHex().c_str());
-	reply("mgmt      %s", mgmt ? mgmt.hash().toHex().c_str() : "off");
-	reply("probe     %s", probe ? probe.hash().toHex().c_str() : "off");
+	reply("Transport ID %s", RNS::Transport::identity().hash().toHex().c_str());
+	reply("\r\nDestinations:");
+	reply("Mgmt         %s", mgmt ? mgmt.hash().toHex().c_str() : "off");
+	reply("Probe        %s", probe ? probe.hash().toHex().c_str() : "off");
 	const RNS::Destination& disc = discovery::destination();
-	reply("discovery %s", disc ? disc.hash().toHex().c_str() : "off");
+	reply("Discovery    %s", disc ? disc.hash().toHex().c_str() : "off");
 #if RRPTR_NOMADNET
 	const RNS::Destination& page = nomadnet::destination();
-	reply("nomadnet  %s", page ? page.hash().toHex().c_str() : "off");
+	reply("NomadNet     %s", page ? page.hash().toHex().c_str() : "off");
 #endif
 }
 
