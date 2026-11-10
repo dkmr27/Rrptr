@@ -96,9 +96,17 @@ static void format(char* buf, size_t len) {
 	} else if (c.freq_hz == 0) {
 		snprintf(buf + n, len - n, "\nradio not configured");
 	} else {
-		snprintf(buf + n, len - n, "\n%.3f MHz\nBW %g kHz\nSF%u CR4/%u\nTX %d dBm\n%s",
-			c.freq_hz / 1e6, c.bandwidth_hz / 1000.0, c.sf, c.cr, radio->applied_power_dbm(),
-			lora && lora->online() ? "" : "radio off");
+		n += snprintf(buf + n, len - n, "\n%.3f MHz\nBW %g kHz\nSF%u CR4/%u\nTX %d dBm\n",
+			c.freq_hz / 1e6, c.bandwidth_hz / 1000.0, c.sf, c.cr, radio->applied_power_dbm());
+		if (lora && lora->online()) {
+			// Not read while transmitting or scanning, which would disturb them;
+			// whole dBm, so the screen is not redrawn for every small change
+			static int noise = 0;
+			if (!radio->transmitting() && !radio->scanning()) noise = (int)lroundf(radio->current_rssi());
+			snprintf(buf + n, len - n, "Noise %d dBm", noise);
+		} else {
+			snprintf(buf + n, len - n, "radio off");
+		}
 	}
 }
 
@@ -112,6 +120,9 @@ void update() {
 	} else if (screen_on && millis() - screen_on_at >= SCREEN_ON_MS) {
 		set_screen(false);
 	}
+
+	// Nothing to show while the screen is off; it is redrawn when it comes back on
+	if (!screen_on) { shown[0] = 0; return; }
 
 	static uint32_t last = 0;
 	if (shown[0] && millis() - last < CHECK_INTERVAL_MS) return;
