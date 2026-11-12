@@ -29,7 +29,7 @@ AI disclosure: I have leveraged AI in the creation of this code, but not without
 | `heltec_v4r8_sx1262` | Heltec WiFi LoRa 32 V4 R8 | ESP32-S3 | SX1262 | 18.4 mA |
 | `xiao_s3_lora2021f33` | Seeed XIAO ESP32-S3 (8 MB flash) on the Xiao-LoRa2021F33-2G4 board (NiceRF LoRa2021F33, sub-GHz and 2.4 GHz) | ESP32-S3 | LR2021 | |
 | `xiao_nrf_lora2021f33` | Seeed XIAO nRF52840 on the Xiao-LoRa2021F33-2G4 board | nRF52840 | LR2021 | |
-| `ebyte_eora_hub_lr1121` | Ebyte EoRa-HUB-900TB (E80 module, sub-GHz and 2.4 GHz); battery reading is wrong, a known hardware fault | ESP32-S3 | LR1121 | |
+| `ebyte_eora_hub_lr1121` | Ebyte EoRa-HUB-900TB (E80 module, sub-GHz and 2.4 GHz); battery reading is wrong, a known hardware fault | ESP32-S3 | LR1121 | 11.6 mA |
 | `rak4631_sx1262` | RAK4631 with RAK15001 flash (required) | nRF52840 | SX1262 | |
 | `rak3401_rak13302` | RAK3401 with RAK13302 1 W LoRa module (CS moved to IO7: 0 ohm from R7 to R4) and RAK15001 flash in slot A (required), not yet tested on hardware | nRF52840 | SX1262 | |
 
