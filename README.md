@@ -31,6 +31,7 @@ AI disclosure: I have leveraged AI in the creation of this code, but not without
 | `xiao_nrf_lora2021f33` | Seeed XIAO nRF52840 on the Xiao-LoRa2021F33-2G4 board | nRF52840 | LR2021 | |
 | `ebyte_eora_hub_lr1121` | Ebyte EoRa-HUB-900TB (E80 module, sub-GHz and 2.4 GHz); battery reading is wrong, a known hardware fault | ESP32-S3 | LR1121 | |
 | `rak4631_sx1262` | RAK4631 with RAK15001 flash (required) | nRF52840 | SX1262 | |
+| `rak3401_rak13302` | RAK3401 with RAK13302 1 W LoRa module (CS moved to IO7: 0 ohm from R7 to R4) and RAK15001 flash in slot A (required), not yet tested on hardware | nRF52840 | SX1262 | |
 
 TX power is always the radio chip's drive power. Boards with a front-end module, such as the Heltec V4, put out more at the antenna: about 7 to 11 dB more on the V4, so 22 dBm gives about 28 dBm. The Xiao-LoRa2021F33-2G4's module has a PA on both bands: 2.4 GHz is capped at 0 dBm drive, which already gives about 30 dBm out.
 
