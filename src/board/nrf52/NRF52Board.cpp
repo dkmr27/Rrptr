@@ -4,8 +4,14 @@
 
 // The radio gets its own SPI peripheral; the default SPI (SPIM3) is left for
 // the external flash. A second radio would take SPIM1 (shared with TWIM1, so
-// only while Wire1 is unused).
+// only while Wire1 is unused). Boards whose radio is on the flash's pins set
+// BOARD_RADIO_SHARES_FLASH_SPI: two peripherals cannot drive the same pins, so
+// the radio uses the default SPI too, with its own chip select.
+#if defined(BOARD_RADIO_SHARES_FLASH_SPI) && BOARD_RADIO_SHARES_FLASH_SPI
+static SPIClass& radio0_spi = SPI;
+#else
 static SPIClass radio0_spi(NRF_SPIM2, RADIO0_MISO, RADIO0_SCK, RADIO0_MOSI);
+#endif
 
 // Given by wake(), taken by idle(). A wake that comes before idle() is kept,
 // so an interrupt just before the loop goes idle is not missed.
