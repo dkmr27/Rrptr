@@ -60,7 +60,7 @@ extern "C"
 #define LED_STATE_ON         1         // State when LED is lit
 
 // Buttons
-#define PIN_BUTTON1          (32)      // P1.00 / D6
+#define PIN_BUTTON1          (32)      // P1.00 / D6, used for the flash's DI (MOSI) on Rrptr
 
 // External 3V3 (VCC) rail enable, powers radio and peripherals
 #define PIN_VCC_EN           (13)      // P0.13
@@ -114,9 +114,9 @@ static const uint8_t AREF = PIN_AREF;
  */
 #define SPI_INTERFACES_COUNT 1
 
-#define PIN_SPI_SCK          (22)      // P0.22 / D4 -> W25Q128 CLK
-#define PIN_SPI_MOSI         (24)      // P0.24 / D5 -> W25Q128 DI  (IO0)
-#define PIN_SPI_MISO         (38)      // P1.06 / D9 -> W25Q128 DO  (IO1)
+#define PIN_SPI_SCK          (24)      // P0.24 / D5 -> W25Q128 CLK
+#define PIN_SPI_MOSI         (32)      // P1.00 / D6 -> W25Q128 DI  (IO0)
+#define PIN_SPI_MISO         (22)      // P0.22 / D4 -> W25Q128 DO  (IO1)
 #define PIN_EXTERNAL_FLASH_CS (20)     // P0.20 / D3 -> W25Q128 /CS
 
 static const uint8_t SS   = PIN_EXTERNAL_FLASH_CS ;

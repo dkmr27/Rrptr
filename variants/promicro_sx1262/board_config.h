@@ -29,9 +29,9 @@
 #define BOARD_HAS_EXT_FLASH   1
 #define BOARD_FLASH_DEVICE    W25Q128   // chip definition from microStore's FlashFS adapter
 #define BOARD_FLASH_NAME      "W25Q128"
-#define BOARD_FLASH_SCK       22        // P0.22 / D4
-#define BOARD_FLASH_MOSI      24        // P0.24 / D5
-#define BOARD_FLASH_MISO      38        // P1.06 / D9
+#define BOARD_FLASH_SCK       24        // P0.24 / D5
+#define BOARD_FLASH_MOSI      32        // P1.00 / D6
+#define BOARD_FLASH_MISO      22        // P0.22 / D4
 #define BOARD_FLASH_CS        20        // P0.20 / D3
 
 // Radios
