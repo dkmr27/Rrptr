@@ -145,6 +145,7 @@ static Bytes admin_page(const Bytes&, const Bytes&, const Bytes&, const Bytes&, 
 	start_page("Admin statistics");
 	add_uptime();
 	add("Reset: %s\n", board.reset_reason());
+	if (board.last_crash()) add("Last crash: %s\n", board.last_crash());
 	add("Battery: %u mV\n", board.battery_mv());
 	if (status::pool_size()) add("Pool free: %lu bytes, lowest %lu\n", (unsigned long)status::pool_free(), (unsigned long)status::pool_lowest());
 	add("Heap free: %lu bytes, lowest %lu\n", (unsigned long)status::heap_free(), (unsigned long)status::heap_lowest());

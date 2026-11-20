@@ -5,6 +5,8 @@
 
 #include <microReticulum/Utilities/Memory.h>
 
+#include "board/Board.h"
+
 namespace status {
 
 // Reading the pool walks all its blocks, so not too often
@@ -33,6 +35,7 @@ static void take_sample() {
 	if (!sampled || pool < lowest_pool) lowest_pool = pool;
 	if (!sampled || heap < lowest_heap) lowest_heap = heap;
 	sampled = true;
+	board.note_pool(pool, lowest_pool);
 }
 
 size_t pool_lowest() { take_sample(); return lowest_pool; }

@@ -146,6 +146,7 @@ static void cmd_stats() {
 	reply("uptime %lud %02lu:%02lu:%02lu, reset: %s", (unsigned long)(up / 86400),
 		(unsigned long)(up / 3600 % 24), (unsigned long)(up / 60 % 60), (unsigned long)(up % 60),
 		board.reset_reason());
+	if (board.last_crash()) reply("last crash: %s", board.last_crash());
 	reply("battery %u mV", board.battery_mv());
 	if (status::pool_size()) {
 		reply("pool free %lu of %lu bytes, lowest %lu", (unsigned long)status::pool_free(), (unsigned long)status::pool_size(),
@@ -498,6 +499,7 @@ static void cmd_erase(char* arg) {
 //                                 unless rx)
 //   test idle <ms>                longest main loop idle per pass
 //   test uart off                 switch the console UART off (USB stays)
+//   test crash                    a deliberate fault (crash record check)
 //   test tx nocrc                 send one frame without a payload CRC
 //                                 (only with -DRRPTR_TEST_NOCRC)
 static void cmd_test(char* what, char* arg) {
@@ -525,6 +527,16 @@ static void cmd_test(char* what, char* arg) {
 		loop_idle_ms = ms;
 		reply("OK");
 		return;
+	}
+	// A deliberate fault, to check the crash record survives the reset
+	if (what && !strcmp(what, "crash")) {
+#if defined(RRPTR_MCU_NRF52)
+		reply("Crashing... (SHCSR 0x%08lx)", (unsigned long)SCB->SHCSR);
+#else
+		reply("Crashing...");
+#endif
+		console.flush();
+		__builtin_trap();
 	}
 #if defined(RRPTR_TEST_NOCRC)
 	// One RNode-format frame sent without a payload CRC; a receiving Rrptr
@@ -615,6 +627,7 @@ static void cmd_help() {
 	reply("test idle <ms>              power test: longest main loop idle (default %u)", BOARD_LOOP_IDLE_MS);
 	reply("test uart off               power test: console UART off (until reboot)");
 	reply("test paths <n>              add n fake path entries (erase afterwards)");
+	reply("test crash                  crash on purpose, to check the crash record");
 #if defined(RRPTR_TEST_NOCRC)
 	reply("test tx nocrc               send one frame without CRC (receivers drop it)");
 #endif

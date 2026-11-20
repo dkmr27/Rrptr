@@ -50,6 +50,10 @@ public:
 	virtual bool enter_ota() { return false; }
 	virtual const char* const* ota_help() const { return nullptr; }
 	virtual const char* reset_reason() = 0;
+	// The last crash the board recorded, as one line of text, or null if none
+	virtual const char* last_crash() { return nullptr; }
+	// The memory pool's free and lowest free bytes, kept for the crash record
+	virtual void note_pool(size_t free, size_t lowest) { (void)free; (void)lowest; }
 	// Bootloader version, or null if the board cannot tell
 	virtual const char* bootloader_version() { return nullptr; }
 

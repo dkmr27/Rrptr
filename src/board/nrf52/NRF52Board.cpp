@@ -22,7 +22,152 @@ static NRF52Board nrf52_board;
 Board& board = nrf52_board;
 #endif
 
+// ─── Crash record ───────────────────────────────────────────
+// A crash normally ends in the core's HardFault handler, which just resets, so
+// it reads as a software reset, the same as a planned reboot. The core's handler
+// cannot be replaced (its definition is not weak), so begin() turns on the
+// separate MemManage, BusFault and UsageFault exceptions, which catch bad
+// pointers, bad instructions and traps. Their handler writes where the code was
+// to a page of internal flash, so the next boot can report it. Only a fault
+// those cannot take (one inside a fault handler, for example) still goes to
+// HardFault, and reads as "software, unplanned".
+// The PC and LR are looked up in the build's firmware.elf:
+//   arm-none-eabi-addr2line -f -C -e firmware.elf <pc> <lr>
+//
+// The record is in flash, not RAM, as the bootloader runs on every reset and
+// uses RAM after the application's start. The page is the last of the area
+// the core sets aside for its internal filesystem (0xED000 to 0xF4000, below
+// the bootloader), which Rrptr does not use: its storage is on external flash.
+//
+// GPREGRET2 (GPREGRET is the bootloader's) says why the last reset happened:
+// PLANNED_REBOOT from reboot(), CRASH_REBOOT from the handler. A software reset
+// with neither was not Rrptr's doing.
+
+static const uint32_t CRASH_PAGE = 0xF3000;
+static const uint32_t CRASH_MAGIC = 0x52524352;  // "RRCR"
+static const uint8_t PLANNED_REBOOT = 0xA5;
+static const uint8_t CRASH_REBOOT = 0x5C;
+
+struct CrashRecord {
+	uint32_t magic;
+	uint32_t build;        // end of the firmware's code, to tell another build's record
+	uint32_t count;        // crashes recorded since the page was blank
+	uint32_t pc, lr, cfsr, hfsr, fault_addr;
+	uint32_t uptime_s;
+	uint32_t pool_free, pool_lowest;
+	uint32_t check;
+};
+
+extern "C" uint32_t __etext[];  // from the linker script
+
+static const CrashRecord& stored_crash = *(const CrashRecord*)CRASH_PAGE;
+// Kept up to date by note_pool(), copied into the record by the handler
+static volatile uint32_t last_pool_free = 0, last_pool_lowest = 0;
+
+static uint32_t crash_check(const CrashRecord& r) {
+	const uint32_t* w = (const uint32_t*)&r;
+	uint32_t sum = 0x2B1F0E57;
+	for (size_t i = 0; i < offsetof(CrashRecord, check) / 4; i++) sum = (sum << 5 | sum >> 27) ^ w[i];
+	return sum;
+}
+
+static bool crash_valid() {
+	return stored_crash.magic == CRASH_MAGIC && stored_crash.check == crash_check(stored_crash);
+}
+
+// Read once at boot, and cleared for the next one
+static bool booted_from_crash = false;
+static bool booted_from_planned = false;
+
+static void read_reset_mark() {
+	uint8_t mark = NRF_POWER->GPREGRET2;
+	NRF_POWER->GPREGRET2 = 0;
+	booted_from_planned = mark == PLANNED_REBOOT;
+	booted_from_crash = mark == CRASH_REBOOT;
+}
+
+static void nvmc_wait() { while (NRF_NVMC->READY == NVMC_READY_READY_Busy) {} }
+
+// Direct NVMC access, as the SoftDevice is not running
+static void write_crash_record(const CrashRecord& r) {
+	NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Een;
+	nvmc_wait();
+	NRF_NVMC->ERASEPAGE = CRASH_PAGE;
+	nvmc_wait();
+	NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Wen;
+	nvmc_wait();
+	const uint32_t* src = (const uint32_t*)&r;
+	volatile uint32_t* dst = (volatile uint32_t*)CRASH_PAGE;
+	for (size_t i = 0; i < sizeof(r) / 4; i++) {
+		dst[i] = src[i];
+		nvmc_wait();
+	}
+	NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Ren;
+	nvmc_wait();
+}
+
+// Called by the handler below with the stack frame the fault pushed:
+// r0, r1, r2, r3, r12, lr, pc, xpsr
+extern "C" __attribute__((used)) void rrptr_fault(const uint32_t* frame) {
+	NRF_POWER->GPREGRET2 = CRASH_REBOOT;
+	CrashRecord r;
+	r.magic = CRASH_MAGIC;
+	r.build = (uint32_t)__etext;
+	r.count = (crash_valid() ? stored_crash.count : 0) + 1;
+	r.lr = frame[5];
+	r.pc = frame[6];
+	r.cfsr = SCB->CFSR;
+	r.hfsr = SCB->HFSR;
+	r.fault_addr = (SCB->CFSR & SCB_CFSR_BFARVALID_Msk) ? SCB->BFAR
+		: (SCB->CFSR & SCB_CFSR_MMARVALID_Msk) ? SCB->MMFAR : 0;
+	r.uptime_s = millis() / 1000;
+	r.pool_free = last_pool_free;
+	r.pool_lowest = last_pool_lowest;
+	r.check = crash_check(r);
+	write_crash_record(r);
+	NVIC_SystemReset();
+}
+
+// Finds the frame on whichever stack was in use: the task's (PSP) or, in an
+// interrupt, the main stack (MSP)
+#define RRPTR_FAULT_HANDLER(name)                      \
+	extern "C" __attribute__((naked)) void name(void) { \
+		__asm volatile(                                  \
+			"tst lr, #4      \n"                         \
+			"ite eq          \n"                         \
+			"mrseq r0, msp   \n"                         \
+			"mrsne r0, psp   \n"                         \
+			"b rrptr_fault   \n");                       \
+	}
+RRPTR_FAULT_HANDLER(MemoryManagement_Handler)
+RRPTR_FAULT_HANDLER(BusFault_Handler)
+RRPTR_FAULT_HANDLER(UsageFault_Handler)
+
+void NRF52Board::note_pool(size_t free, size_t lowest) {
+	last_pool_free = free;
+	last_pool_lowest = lowest;
+}
+
+const char* NRF52Board::last_crash() {
+	if (!crash_valid()) return booted_from_crash ? "details not recorded" : nullptr;
+	static char text[220];
+	const CrashRecord& r = stored_crash;
+	uint32_t up = r.uptime_s;
+	snprintf(text, sizeof(text),
+		"PC 0x%08lx, LR 0x%08lx, CFSR 0x%08lx, HFSR 0x%08lx, address 0x%08lx, "
+		"after %lud %02lu:%02lu:%02lu, pool free %lu, lowest %lu, crash %lu%s",
+		(unsigned long)r.pc, (unsigned long)r.lr, (unsigned long)r.cfsr,
+		(unsigned long)r.hfsr, (unsigned long)r.fault_addr,
+		(unsigned long)(up / 86400), (unsigned long)(up / 3600 % 24),
+		(unsigned long)(up / 60 % 60), (unsigned long)(up % 60),
+		(unsigned long)r.pool_free, (unsigned long)r.pool_lowest, (unsigned long)r.count,
+		r.build == (uint32_t)__etext ? "" : ", in other firmware");
+	return text;
+}
+
 void NRF52Board::begin() {
+	read_reset_mark();
+	SCB->SHCSR |= SCB_SHCSR_MEMFAULTENA_Msk | SCB_SHCSR_BUSFAULTENA_Msk | SCB_SHCSR_USGFAULTENA_Msk;
 	Board::begin();
 	wake_sem = xSemaphoreCreateBinary();
 
@@ -78,6 +223,7 @@ void Board::wake() {
 }
 
 void NRF52Board::reboot() {
+	NRF_POWER->GPREGRET2 = PLANNED_REBOOT;
 	NVIC_SystemReset();
 }
 
@@ -85,6 +231,7 @@ void NRF52Board::reboot() {
 // application needs no Bluetooth code for this: it leaves a value for the
 // bootloader in GPREGRET and resets.
 bool NRF52Board::enter_ota() {
+	NRF_POWER->GPREGRET2 = PLANNED_REBOOT;
 	enterOTADfu();  // does not return
 	return true;
 }
@@ -102,7 +249,12 @@ const char* NRF52Board::reset_reason() {
 	uint32_t r = readResetReason();
 	if (r & POWER_RESETREAS_RESETPIN_Msk) return "reset pin";
 	if (r & POWER_RESETREAS_DOG_Msk)      return "watchdog";
-	if (r & POWER_RESETREAS_SREQ_Msk)     return "software";
+	if (r & POWER_RESETREAS_SREQ_Msk) {
+		if (booted_from_crash)   return "crash";
+		if (booted_from_planned) return "software";
+		// Not Rrptr: e.g. the first boot after flashing, or a USB 1200 baud touch
+		return "software, unplanned";
+	}
 	if (r & POWER_RESETREAS_LOCKUP_Msk)   return "lockup";
 	if (r & POWER_RESETREAS_OFF_Msk)      return "wake from off";
 	if (r & POWER_RESETREAS_VBUS_Msk)     return "usb power";
