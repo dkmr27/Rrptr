@@ -34,8 +34,10 @@ bool storage_begin() {
 	snprintf(description, sizeof(description), "%s %lu KB",
 		BOARD_FLASH_NAME, (unsigned long)(device.total_size / 1024));
 
-	// Far more room than the compiled-in defaults assume: keep a larger path table
-	RNS::Transport::path_table_maxsize(500);
+	// Far more room than the compiled-in defaults assume: keep a larger path table.
+	// Not as large as on the ESP32: each path takes pool memory, and 500 ran a
+	// busy node's pool out (microReticulum then resets the board).
+	RNS::Transport::path_table_maxsize(300);
 	RNS::Transport::path_store_segment_size(24576);
 	RNS::Transport::path_store_segment_count(8);
 

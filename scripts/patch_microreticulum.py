@@ -51,6 +51,30 @@ TRANSPORT_FIXES = [
 ]
 
 
+# Reticulum::loop() resets the board when the pool runs out. On nRF52 that reset
+# now goes through Rrptr's rrptr_out_of_memory(), which records it as a crash
+# first (src/board/nrf52/NRF52Board.cpp).
+RETICULUM_FIXES = [
+	(
+		"using namespace RNS;\n",
+		"using namespace RNS;\n\n"
+		"#if defined(RRPTR_MCU_NRF52)\n"
+		"extern \"C\" void rrptr_out_of_memory(void);  // Rrptr patch: records the reset\n"
+		"#endif\n",
+	),
+	(
+		"\t\tERROR(\"Reticulum::loop: bad_alloc - OUT OF MEMORY\");\n"
+		"\t\t// Critical OOM, restarting\n"
+		"#if defined(ESP32)\n",
+		"\t\tERROR(\"Reticulum::loop: bad_alloc - OUT OF MEMORY\");\n"
+		"\t\t// Critical OOM, restarting\n"
+		"#if defined(RRPTR_MCU_NRF52)\n"
+		"\t\trrptr_out_of_memory();  // Rrptr patch\n"
+		"#elif defined(ESP32)\n",
+	),
+]
+
+
 def patch(path, fixes):
 	with open(path, newline="", encoding="utf-8") as f:
 		text = f.read()
@@ -72,3 +96,6 @@ libdeps = env.subst("$PROJECT_LIBDEPS_DIR/$PIOENV")
 transport = os.path.join(libdeps, "microReticulum", "src", "microReticulum", "Transport.cpp")
 if os.path.exists(transport):
 	patch(transport, TRANSPORT_FIXES)
+reticulum = os.path.join(libdeps, "microReticulum", "src", "microReticulum", "Reticulum.cpp")
+if os.path.exists(reticulum):
+	patch(reticulum, RETICULUM_FIXES)

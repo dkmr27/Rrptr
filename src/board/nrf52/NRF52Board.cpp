@@ -2,6 +2,8 @@
 
 #include "board/nrf52/NRF52Board.h"
 
+#include <microReticulum/Utilities/Memory.h>
+
 // The radio gets its own SPI peripheral; the default SPI (SPIM3) is left for
 // the external flash. A second radio would take SPIM1 (shared with TWIM1, so
 // only while Wire1 is unused). Boards whose radio is on the flash's pins set
@@ -39,18 +41,26 @@ Board& board = nrf52_board;
 // the core sets aside for its internal filesystem (0xED000 to 0xF4000, below
 // the bootloader), which Rrptr does not use: its storage is on external flash.
 //
+// microReticulum also resets the board itself when its memory pool runs out
+// (Reticulum::loop() catches bad_alloc and calls NVIC_SystemReset). That is no
+// fault, so the patch in scripts/patch_microreticulum.py sends it to
+// rrptr_out_of_memory() below, which records it the same way.
+//
 // GPREGRET2 (GPREGRET is the bootloader's) says why the last reset happened:
-// PLANNED_REBOOT from reboot(), CRASH_REBOOT from the handler. A software reset
+// PLANNED_REBOOT from reboot(), CRASH_REBOOT from a handler. A software reset
 // with neither was not Rrptr's doing.
 
 static const uint32_t CRASH_PAGE = 0xF3000;
-static const uint32_t CRASH_MAGIC = 0x52524352;  // "RRCR"
+static const uint32_t CRASH_MAGIC = 0x52524353;  // "RRCS"; a record with no kind field reads as blank
 static const uint8_t PLANNED_REBOOT = 0xA5;
 static const uint8_t CRASH_REBOOT = 0x5C;
+
+enum CrashKind : uint32_t { KIND_FAULT = 0, KIND_OUT_OF_MEMORY = 1 };
 
 struct CrashRecord {
 	uint32_t magic;
 	uint32_t build;        // end of the firmware's code, to tell another build's record
+	uint32_t kind;         // CrashKind
 	uint32_t count;        // crashes recorded since the page was blank
 	uint32_t pc, lr, cfsr, hfsr, fault_addr;
 	uint32_t uptime_s;
@@ -113,6 +123,7 @@ extern "C" __attribute__((used)) void rrptr_fault(const uint32_t* frame) {
 	CrashRecord r;
 	r.magic = CRASH_MAGIC;
 	r.build = (uint32_t)__etext;
+	r.kind = KIND_FAULT;
 	r.count = (crash_valid() ? stored_crash.count : 0) + 1;
 	r.lr = frame[5];
 	r.pc = frame[6];
@@ -143,6 +154,32 @@ RRPTR_FAULT_HANDLER(MemoryManagement_Handler)
 RRPTR_FAULT_HANDLER(BusFault_Handler)
 RRPTR_FAULT_HANDLER(UsageFault_Handler)
 
+// Called by the patched Reticulum::loop() in place of its reset when the pool
+// runs out. The PC recorded is the call's return address, in Reticulum::loop().
+extern "C" __attribute__((noinline, noreturn)) void rrptr_out_of_memory(void) {
+	uint32_t pool = RNS::Utilities::Memory::heap_pool_free();
+	CrashRecord r;
+	r.magic = CRASH_MAGIC;
+	r.build = (uint32_t)__etext;
+	r.kind = KIND_OUT_OF_MEMORY;
+	r.count = (crash_valid() ? stored_crash.count : 0) + 1;
+	r.pc = (uint32_t)__builtin_return_address(0);
+	r.lr = 0;
+	r.cfsr = 0;
+	r.hfsr = 0;
+	r.fault_addr = 0;
+	r.uptime_s = millis() / 1000;
+	r.pool_free = pool;
+	r.pool_lowest = (last_pool_lowest && last_pool_lowest < pool) ? last_pool_lowest : pool;
+	r.check = crash_check(r);
+	Serial.flush();  // the log line before this was cut short by the reset
+	__disable_irq();
+	write_crash_record(r);
+	NRF_POWER->GPREGRET2 = CRASH_REBOOT;
+	NVIC_SystemReset();
+	while (true) {}
+}
+
 void NRF52Board::note_pool(size_t free, size_t lowest) {
 	last_pool_free = free;
 	last_pool_lowest = lowest;
@@ -153,6 +190,16 @@ const char* NRF52Board::last_crash() {
 	static char text[220];
 	const CrashRecord& r = stored_crash;
 	uint32_t up = r.uptime_s;
+	if (r.kind == KIND_OUT_OF_MEMORY) {
+		snprintf(text, sizeof(text),
+			"out of memory at 0x%08lx, after %lud %02lu:%02lu:%02lu, pool free %lu, lowest %lu, crash %lu%s",
+			(unsigned long)r.pc,
+			(unsigned long)(up / 86400), (unsigned long)(up / 3600 % 24),
+			(unsigned long)(up / 60 % 60), (unsigned long)(up % 60),
+			(unsigned long)r.pool_free, (unsigned long)r.pool_lowest, (unsigned long)r.count,
+			r.build == (uint32_t)__etext ? "" : ", in other firmware");
+		return text;
+	}
 	snprintf(text, sizeof(text),
 		"PC 0x%08lx, LR 0x%08lx, CFSR 0x%08lx, HFSR 0x%08lx, address 0x%08lx, "
 		"after %lud %02lu:%02lu:%02lu, pool free %lu, lowest %lu, crash %lu%s",
@@ -250,7 +297,9 @@ const char* NRF52Board::reset_reason() {
 	if (r & POWER_RESETREAS_RESETPIN_Msk) return "reset pin";
 	if (r & POWER_RESETREAS_DOG_Msk)      return "watchdog";
 	if (r & POWER_RESETREAS_SREQ_Msk) {
-		if (booted_from_crash)   return "crash";
+		if (booted_from_crash) {
+			return crash_valid() && stored_crash.kind == KIND_OUT_OF_MEMORY ? "out of memory" : "crash";
+		}
 		if (booted_from_planned) return "software";
 		// Not Rrptr: e.g. the first boot after flashing, or a USB 1200 baud touch
 		return "software, unplanned";

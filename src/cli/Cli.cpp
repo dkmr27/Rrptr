@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <algorithm>
+#include <new>
 #include <vector>
 
 #include <microReticulum/Transport.h>
@@ -500,6 +501,7 @@ static void cmd_erase(char* arg) {
 //   test idle <ms>                longest main loop idle per pass
 //   test uart off                 switch the console UART off (USB stays)
 //   test crash                    a deliberate fault (crash record check)
+//   test oom                      take all the memory pool (out-of-memory record check)
 //   test tx nocrc                 send one frame without a payload CRC
 //                                 (only with -DRRPTR_TEST_NOCRC)
 static void cmd_test(char* what, char* arg) {
@@ -537,6 +539,22 @@ static void cmd_test(char* what, char* arg) {
 #endif
 		console.flush();
 		__builtin_trap();
+	}
+	// Takes all of the memory pool and keeps it, so microReticulum's next
+	// allocation fails as it would when the pool runs out
+	if (what && !strcmp(what, "oom")) {
+		size_t taken = 0;
+		for (size_t size = 4096; size >= 8; ) {
+			try {
+				new char[size];  // deliberately never freed
+				taken += size;
+			}
+			catch (const std::bad_alloc&) {
+				size /= 2;
+			}
+		}
+		reply("Took %u bytes of the pool, waiting for the next allocation...", (unsigned)taken);
+		return;
 	}
 #if defined(RRPTR_TEST_NOCRC)
 	// One RNode-format frame sent without a payload CRC; a receiving Rrptr
@@ -628,6 +646,7 @@ static void cmd_help() {
 	reply("test uart off               power test: console UART off (until reboot)");
 	reply("test paths <n>              add n fake path entries (erase afterwards)");
 	reply("test crash                  crash on purpose, to check the crash record");
+	reply("test oom                    take all the memory pool, to check the out-of-memory record");
 #if defined(RRPTR_TEST_NOCRC)
 	reply("test tx nocrc               send one frame without CRC (receivers drop it)");
 #endif

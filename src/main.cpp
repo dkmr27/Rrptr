@@ -65,6 +65,11 @@ static void reticulum_setup() {
 		RNS::Transport::register_interface(lora_interface);
 		lora_interface.start();
 
+		// Announces wait in this table only between being heard and being
+		// rebroadcast. LoRa brings them in slowly, so a few places are plenty, and
+		// each holds a whole packet (about half a KB of pool). Older ones go first.
+		RNS::Transport::announce_table_maxsize(10);
+
 		reticulum = RNS::Reticulum();
 		reticulum.start();
 		apply_radio();
