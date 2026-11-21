@@ -47,6 +47,8 @@ static char line[CLI_LINE_MAX + 1];
 static size_t line_len = 0;
 static bool erase_armed = false;
 static bool ota_armed = false;
+// Where replies go while run_line() runs a command for something other than the console
+static Output capture = nullptr;
 
 void begin(Radio* r, LoRaInterface* l) {
 	radio = r;
@@ -61,6 +63,7 @@ static void reply(const char* fmt, ...) {
 	va_start(args, fmt);
 	vsnprintf(buf, sizeof(buf), fmt, args);
 	va_end(args);
+	if (capture) { capture(buf); return; }
 	console.print(buf);
 	console.print("\r\n");
 }
@@ -610,12 +613,24 @@ static void cmd_test(char* what, char* arg) {
 }
 #endif
 
+static void cmd_crash(const char* arg) {
+	if (arg && !strcmp(arg, "clear")) {
+		if (board.clear_crash()) reply("Crash record cleared");
+		else reply("Not available: this board keeps no crash record");
+		return;
+	}
+	if (arg) { reply("Error: crash [clear]"); return; }
+	const char* crash = board.last_crash();
+	reply("last crash: %s", crash ? crash : "none recorded");
+}
+
 static void cmd_help() {
 	reply("ver                         firmware and microReticulum version");
 	reply("hw                          board, radio and storage");
 	reply("stats                       uptime, battery, radio and traffic counters");
 	reply("bat                         battery voltage");
-	reply("get id                      transport identity and destination hashes");
+	reply("crash [clear]               the last recorded crash, or forget it");
+	reply("get id                     transport identity and destination hashes");
 	reply("an|announce [mgmt|probe|nomad|discovery]  announce now (default all)");
 	reply("neighbours                  nodes heard directly");
 	reply("prov [<hash> | del <hash>]  list, add or remove remote admin identities");
@@ -666,6 +681,7 @@ static void run(char* text) {
 	else if (!strcmp(cmd, "hw") || !strcmp(cmd, "board")) cmd_hw();
 	else if (!strcmp(cmd, "stats")) cmd_stats();
 	else if (!strcmp(cmd, "bat")) cmd_bat();
+	else if (!strcmp(cmd, "crash")) cmd_crash(arg1);
 	else if (!strcmp(cmd, "prov")) cmd_prov(arg1, arg2);
 	else if (!strcmp(cmd, "neighbours")) cmd_neighbours();
 	else if (!strcmp(cmd, "an") || !strcmp(cmd, "announce")) cmd_announce(arg1);
@@ -680,6 +696,21 @@ static void run(char* text) {
 #endif
 	else if (!strcmp(cmd, "help") || !strcmp(cmd, "?")) cmd_help();
 	else reply("Error: unknown command '%s' (type help)", cmd);
+}
+
+void run_line(const char* text, Output out) {
+	char copy[CLI_LINE_MAX + 1];
+	strncpy(copy, text, CLI_LINE_MAX);
+	copy[CLI_LINE_MAX] = 0;
+	capture = out;
+	try {
+		run(copy);
+	}
+	catch (...) {
+		capture = nullptr;
+		throw;
+	}
+	capture = nullptr;
 }
 
 void poll() {

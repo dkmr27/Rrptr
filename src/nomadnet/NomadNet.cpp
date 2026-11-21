@@ -15,6 +15,7 @@
 #include <microReticulum/Provisioning/Ids.h>
 
 #include "board/Board.h"
+#include "cli/Cli.h"
 #include "discovery/Discovery.h"
 #include "log/Log.h"
 #include "lora/LoRaInterface.h"
@@ -43,10 +44,11 @@ static RNS::Destination dest(RNS::Type::NONE);
 static Radio* radio = nullptr;
 static LoRaInterface* lora = nullptr;
 static uint32_t next_announce = 0;     // millis
-// The reboot link's path has a part chosen at boot. It stops working once the
-// node has rebooted, so a reload cannot reboot it again, and another node's page
-// cannot carry a working link to it.
+// The reboot and OTA links' paths have a part chosen at boot. They stop working
+// once the node has rebooted, so a reload cannot reboot it again, and another
+// node's page cannot carry a working link to them.
 static char reboot_path[32];
+static char ota_path[32];
 
 // One page is built at a time, as requests are handled in the main loop
 static char page[1400];
@@ -270,7 +272,9 @@ static Bytes controls_page(const Bytes&, const Bytes&, const Bytes&, const Bytes
 	add("`[Announce: probe`:/page/announce_probe.mu]\n");
 	add("`[Announce: NomadNet`:/page/announce_nomad.mu]\n");
 	if (settings::discovery_enabled) add("`[Announce: discovery`:/page/announce_discovery.mu]\n");
+	add("\n`[Command line`:/page/cmd.mu]\n");
 	add("\n`[Reboot`:/page/reboot.mu]\n");
+	if (board.has_ota()) add("`[Firmware update (OTA)`:/page/ota.mu]\n");
 	add("\n`[Back to admin statistics`:/page/admin.mu]\n");
 	return finish_page();
 }
@@ -292,6 +296,128 @@ static Bytes reboot_page(const Bytes&, const Bytes&, const Bytes&, const Bytes&,
 	return finish_page();
 }
 
+static Bytes ota_confirm_page(const Bytes&, const Bytes&, const Bytes&, const Bytes&, const Identity& identity, double) {
+	if (!is_admin(identity)) return denied_page(identity);
+	start_page("Firmware update");
+	for (const char* const* help = board.ota_help(); help && *help; help++) add("%s\n", *help);
+	add("Links to it will close.\n\n");
+	add("`[Yes, start the update`:%s]\n", ota_path);
+	add("`[Cancel`:/page/controls.mu]\n");
+	return finish_page();
+}
+
+static Bytes ota_page(const Bytes&, const Bytes&, const Bytes&, const Bytes&, const Identity& identity, double) {
+	if (!is_admin(identity)) return denied_page(identity);
+	reboot::request_ota();
+	start_page("Firmware update");
+	add("The node is rebooting into its update mode. This link will close.\n");
+	return finish_page();
+}
+
+// ─── Command line ───────────────────────────────────────────
+// Runs a console command and shows its reply. A reload sends the same request
+// again, so each form carries a token that works once: a reload of the result
+// says so instead of running the command again.
+
+// Room left for the output, keeping enough for the end of the page
+static const size_t CMD_OUTPUT_END = sizeof(page) - HEADER_LEN - 300;
+static char cmd_token[9] = "";
+static bool cmd_cut_short = false;
+
+static void add_cmd_form() {
+	snprintf(cmd_token, sizeof(cmd_token), "%s", RNS::Cryptography::random(4).toHex().c_str());
+	add("\nCommand: `B333`<40|cmd`>`b\n");
+	add("`[Run`:/page/cmd_run.mu`cmd|t=%s]\n", cmd_token);
+	add("\n`[Back to controls`:/page/controls.mu]\n");
+}
+
+static void cmd_output(const char* line) {
+	size_t len = strlen(line) + 1;
+	if (cmd_cut_short || page_len + len > CMD_OUTPUT_END) {
+		cmd_cut_short = true;
+		return;
+	}
+	add("%s\n", line);
+}
+
+// Reads a msgpack string (or bytes) at p. Returns the byte after it, or null.
+static const uint8_t* read_text(const uint8_t* p, const uint8_t* end, const uint8_t** text, size_t* len) {
+	if (p >= end) return nullptr;
+	uint8_t type = *p++;
+	size_t n;
+	if ((type & 0xe0) == 0xa0) n = type & 0x1f;                         // fixstr
+	else if ((type == 0xd9 || type == 0xc4) && p < end) n = *p++;        // str8, bin8
+	else if ((type == 0xda || type == 0xc5) && p + 1 < end) { n = p[0] << 8 | p[1]; p += 2; }  // str16, bin16
+	else return nullptr;
+	if ((size_t)(end - p) < n) return nullptr;
+	*text = p;
+	*len = n;
+	return p + n;
+}
+
+// Copies the value of one of the request's fields ("field_cmd", "var_t"), as
+// NomadNet sends them: a map of text to text. False if it is not there.
+static bool request_field(const Bytes& data, const char* key, char* out, size_t out_size) {
+	const uint8_t* p = data.data();
+	const uint8_t* end = p + data.size();
+	if (p >= end) return false;
+	size_t count;
+	if ((*p & 0xf0) == 0x80) count = *p++ & 0x0f;                        // fixmap
+	else if (*p == 0xde && p + 2 < end) { count = p[1] << 8 | p[2]; p += 3; }  // map16
+	else return false;
+	size_t key_len = strlen(key);
+	for (size_t i = 0; i < count; i++) {
+		const uint8_t *k, *v;
+		size_t kn, vn;
+		if (!(p = read_text(p, end, &k, &kn))) return false;
+		if (!(p = read_text(p, end, &v, &vn))) return false;
+		if (kn == key_len && !memcmp(k, key, kn)) {
+			size_t n = 0;
+			for (size_t j = 0; j < vn && n + 1 < out_size; j++) {
+				if (v[j] >= 32 && v[j] < 127) out[n++] = (char)v[j];  // printable only
+			}
+			out[n] = 0;
+			return true;
+		}
+	}
+	return false;
+}
+
+static Bytes cmd_page(const Bytes&, const Bytes&, const Bytes&, const Bytes&, const Identity& identity, double) {
+	if (!is_admin(identity)) return denied_page(identity);
+	start_page("Command line");
+	add("Runs a command as on the serial console. Type help for the list (it is cut short here).\n");
+	add_cmd_form();
+	return finish_page();
+}
+
+static Bytes cmd_run_page(const Bytes&, const Bytes& data, const Bytes&, const Bytes&, const Identity& identity, double) {
+	if (!is_admin(identity)) return denied_page(identity);
+	start_page("Command line");
+	char token[sizeof(cmd_token) + 8];
+	char text[129];
+	if (!cmd_token[0] || !request_field(data, "var_t", token, sizeof(token)) || strcmp(token, cmd_token)) {
+		add("Nothing was run: this command was run already, or the page is out of date.\n");
+	} else if (!request_field(data, "field_cmd", text, sizeof(text)) || !text[0]) {
+		add("Type a command, then Run.\n");
+	} else {
+		cmd_token[0] = 0;  // used
+		R_INFO("NomadNet: command from %s: %s", identity.hash().toHex().c_str(), text);
+		add("`=\n> %s\n", text);
+		cmd_cut_short = false;
+		try {
+			cli::run_line(text, cmd_output);
+		}
+		catch (...) {
+			cmd_output("Error while running the command");
+		}
+		if (cmd_cut_short) add("... (cut short: the page is full)\n");
+		add("`=\n");
+	}
+	add_cmd_form();
+	return finish_page();
+}
+
 // ─── Set-up and announcing ──────────────────────────────────
 void begin(Radio* r, LoRaInterface* l) {
 	if (!settings::nomadnet_enabled) return;
@@ -310,9 +436,16 @@ void begin(Radio* r, LoRaInterface* l) {
 	dest.register_request_handler("/page/announce_probe.mu", announce_probe_page, allow);
 	dest.register_request_handler("/page/announce_nomad.mu", announce_nomad_page, allow);
 	dest.register_request_handler("/page/announce_discovery.mu", announce_discovery_page, allow);
+	dest.register_request_handler("/page/cmd.mu", cmd_page, allow);
+	dest.register_request_handler("/page/cmd_run.mu", cmd_run_page, allow);
 	dest.register_request_handler("/page/reboot.mu", reboot_confirm_page, allow);
 	snprintf(reboot_path, sizeof(reboot_path), "/page/reboot_%s.mu", RNS::Cryptography::random(3).toHex().c_str());
 	dest.register_request_handler(reboot_path, reboot_page, allow);
+	if (board.has_ota()) {
+		dest.register_request_handler("/page/ota.mu", ota_confirm_page, allow);
+		snprintf(ota_path, sizeof(ota_path), "/page/ota_%s.mu", RNS::Cryptography::random(3).toHex().c_str());
+		dest.register_request_handler(ota_path, ota_page, allow);
+	}
 	next_announce = millis() + BOOT_ANNOUNCE_DELAY_MS
 		+ RNS::Cryptography::random(1).data()[0] * BOOT_ANNOUNCE_JITTER_STEP_MS;
 	R_INFO("NomadNet page on %s", dest.hash().toHex().c_str());

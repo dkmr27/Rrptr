@@ -16,6 +16,7 @@ public:
 	const char* const* ota_help() const override;
 	const char* reset_reason() override;
 	const char* last_crash() override;
+	bool clear_crash() override;
 	void note_pool(size_t free, size_t lowest) override;
 	const char* bootloader_version() override;
 };

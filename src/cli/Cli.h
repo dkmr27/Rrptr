@@ -17,6 +17,11 @@ namespace cli {
 	// Reads and runs whatever has arrived on the serial port; call from loop()
 	void poll();
 
+	// Runs one command line as if typed on the console, sending each line of its
+	// reply to out instead (the NomadNet command page uses this)
+	using Output = void (*)(const char* line);
+	void run_line(const char* text, Output out);
+
 	// Longest main loop idle per pass in ms; the radio interrupt ends it early.
 	// `test idle` changes it (debug builds).
 	extern uint32_t loop_idle_ms;

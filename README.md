@@ -58,7 +58,9 @@ pio run -e lilygo_t3s3_updater -t upload --upload-port <port>
 
 ## Firmware updates
 
-Run `ota` on the serial console and follow what it says. nRF52 boards update over Bluetooth from the bootloader, and ESP32 boards over an open Wi-Fi network from the updater, which anyone in range can reach while it runs.
+Run `ota` on the serial console and follow what it says, or use Firmware update on the NomadNet page's Controls. nRF52 boards update over Bluetooth from the bootloader, and ESP32 boards over an open Wi-Fi network from the updater, which anyone in range can reach while it runs.
+
+For nRF52 boards, the [OTAFIX bootloader](https://github.com/oltaco/Adafruit_nRF52_Bootloader_OTAFIX) (MIT, a fork of Adafruit's) is recommended. If a Bluetooth transfer fails, it goes back to waiting for a new one instead of getting stuck, so the update can be retried: this matters for a node whose USB port is out of reach. To install it, copy its `update-` UF2 file for your board onto the board's UF2 drive (double-press reset to get the drive).
 
 ## Acknowledgements
 

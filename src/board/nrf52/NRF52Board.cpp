@@ -185,7 +185,23 @@ void NRF52Board::note_pool(size_t free, size_t lowest) {
 	last_pool_lowest = lowest;
 }
 
+// Erasing the page leaves it blank, which reads as no record. The reset reason
+// still says crash until the next boot.
+static bool crash_cleared = false;
+
+bool NRF52Board::clear_crash() {
+	NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Een;
+	nvmc_wait();
+	NRF_NVMC->ERASEPAGE = CRASH_PAGE;
+	nvmc_wait();
+	NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Ren;
+	nvmc_wait();
+	crash_cleared = true;
+	return true;
+}
+
 const char* NRF52Board::last_crash() {
+	if (crash_cleared) return nullptr;
 	if (!crash_valid()) return booted_from_crash ? "details not recorded" : nullptr;
 	static char text[220];
 	const CrashRecord& r = stored_crash;
