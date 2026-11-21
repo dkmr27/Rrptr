@@ -8,9 +8,9 @@
 // own output is routed here through its log callback.
 //
 // A build with -DRRPTR_DEBUG_LOG starts in `both` at DEBUG level and waits up
-// to 5 s at boot for a serial monitor, so start-up messages are seen. It needs
-// -DRNS_LOG_LEVEL=RNS_LOG_LEVEL_DEBUG so microReticulum's debug messages are
-// compiled in. Development builds only.
+// to 5 s at boot for a serial monitor, so start-up messages are seen, and has
+// the `test` commands. scripts/log_level.py then compiles microReticulum's
+// debug messages in too. Development builds only.
 
 #pragma once
 
