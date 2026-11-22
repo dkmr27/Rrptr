@@ -19,6 +19,13 @@ static const uint32_t BACKOFF_SLOT_SYMBOLS = 12;
 // so a scan that never reports back must not leave it that way
 static const uint32_t SCAN_TIMEOUT_MS = 1000;
 
+// The context byte of a Reticulum packet: after flags, hops and 1 or 2
+// addresses (bit 6 of flags)
+static uint8_t packet_context(const uint8_t* data, size_t len) {
+	size_t at = (data[0] & 0x40) ? 34 : 18;
+	return len > at ? data[at] : 0;
+}
+
 LoRaInterface::LoRaInterface(Radio& radio, const char* name)
 	: RNS::InterfaceImpl(name), _radio(radio) {
 	_HW_MTU = HW_MTU;
@@ -73,7 +80,7 @@ void LoRaInterface::receive_frame() {
 #endif
 		} else {
 			_stats.rx_errors++;
-			R_DEBUG("LoRa: rx error %d, RSSI %.1f, SNR %.2f", len, _radio.packet_rssi(), _radio.packet_snr());
+			R_INFO("LoRa: rx error %d, RSSI %.1f, SNR %.2f", len, _radio.packet_rssi(), _radio.packet_snr());
 		}
 		return;
 	}
@@ -130,10 +137,9 @@ static void log_unknown_link(const uint8_t* data, size_t len) {
 
 void LoRaInterface::deliver(const uint8_t* data, size_t len, float rssi, float snr) {
 	_stats.rx_packets++;
-	// Reticulum header: flags, hops, 1 or 2 addresses (bit 6 of flags), context
-	size_t context_at = (data[0] & 0x40) ? 34 : 18;
-	R_DEBUG("LoRa: rx %u bytes, flags 0x%02x, context 0x%02x, RSSI %.1f, SNR %.2f", (unsigned)len,
-		data[0], len > context_at ? data[context_at] : 0, rssi, snr);
+	// INFO, so a release build with `log on` shows the node is working
+	R_INFO("LoRa: rx %u bytes, flags 0x%02x, context 0x%02x, RSSI %.1f, SNR %.2f", (unsigned)len,
+		data[0], packet_context(data, len), rssi, snr);
 #if defined(RRPTR_DEBUG_LOG)
 	log_unknown_link(data, len);
 #endif
@@ -243,5 +249,7 @@ void LoRaInterface::transmit_done() {
 	_tx_active = false;
 	board.tx_led(false);
 	_stats.tx_packets++;
+	R_INFO("LoRa: tx %u bytes, flags 0x%02x, context 0x%02x", (unsigned)_tx_packet.size(),
+		_tx_packet.data()[0], packet_context(_tx_packet.data(), _tx_packet.size()));
 	handle_outgoing(_tx_packet);
 }
