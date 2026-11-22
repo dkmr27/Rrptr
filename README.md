@@ -51,6 +51,11 @@ esptool.py --chip esp32s3 write_flash 0x0 rrptr-lilygo_t3s3_sx1262-merged.bin
 ```
 The image is built in `.pio/build/lilygo_t3s3_sx1262/`. Flashing it leaves the filesystem alone, so a node already set up keeps its identity and settings.
 
+With PlatformIO, `merged_upload` builds the image and flashes it over USB in one step. In VS Code it is under the env's Project Tasks, Custom, Merged upload:
+```
+pio run -e lilygo_t3s3_sx1262 -t merged_upload
+```
+
 During development, `-t upload` only writes Rrptr. To flash the updater by itself:
 ```
 pio run -e lilygo_t3s3_updater -t upload --upload-port <port>
