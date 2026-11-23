@@ -35,6 +35,11 @@ Board& board = nrf52_board;
 // HardFault, and reads as "software, unplanned".
 // The PC and LR are looked up in the build's firmware.elf:
 //   arm-none-eabi-addr2line -f -C -e firmware.elf <pc> <lr>
+// The LR often only points into the function that crashed, so the handler also
+// keeps the first few words on the stack above the fault that look like return
+// addresses: odd (Thumb) and inside the firmware's code. Looked up the same way,
+// they are the calls that led there, nearest first. Stale values left on the
+// stack can look the same, so one that makes no sense as a caller is noise.
 //
 // The record is in flash, not RAM, as the bootloader runs on every reset and
 // uses RAM after the application's start. The page is the last of the area
@@ -51,11 +56,14 @@ Board& board = nrf52_board;
 // with neither was not Rrptr's doing.
 
 static const uint32_t CRASH_PAGE = 0xF3000;
-static const uint32_t CRASH_MAGIC = 0x52524353;  // "RRCS"; a record with no kind field reads as blank
+static const uint32_t CRASH_MAGIC = 0x52524332;  // "RRC2"; a record of an older layout reads as blank
 static const uint8_t PLANNED_REBOOT = 0xA5;
 static const uint8_t CRASH_REBOOT = 0x5C;
 
 enum CrashKind : uint32_t { KIND_FAULT = 0, KIND_OUT_OF_MEMORY = 1 };
+
+static const size_t CRASH_STACK_WORDS = 8;   // return addresses kept
+static const size_t CRASH_STACK_SCAN = 256;  // stack words searched for them
 
 struct CrashRecord {
 	uint32_t magic;
@@ -65,10 +73,13 @@ struct CrashRecord {
 	uint32_t pc, lr, cfsr, hfsr, fault_addr;
 	uint32_t uptime_s;
 	uint32_t pool_free, pool_lowest;
+	uint32_t stack[CRASH_STACK_WORDS];  // likely return addresses, nearest first; 0 = none
 	uint32_t check;
 };
 
-extern "C" uint32_t __etext[];  // from the linker script
+extern "C" uint32_t __etext[];       // from the linker script: end of the code
+extern "C" uint32_t __isr_vector[];  // from the startup code: start of the code
+extern "C" uint32_t __StackTop[];    // from the linker script: end of RAM
 
 static const CrashRecord& stored_crash = *(const CrashRecord*)CRASH_PAGE;
 // Kept up to date by note_pool(), copied into the record by the handler
@@ -116,9 +127,20 @@ static void write_crash_record(const CrashRecord& r) {
 	nvmc_wait();
 }
 
-// Called by the handler below with the stack frame the fault pushed:
-// r0, r1, r2, r3, r12, lr, pc, xpsr
-extern "C" __attribute__((used)) void rrptr_fault(const uint32_t* frame) {
+// Fills r.stack from the stack above the fault's frame
+static void scan_stack(CrashRecord& r, const uint32_t* sp) {
+	size_t found = 0;
+	for (size_t i = 0; i < CRASH_STACK_SCAN && found < CRASH_STACK_WORDS && sp + i < __StackTop; i++) {
+		uint32_t v = sp[i];
+		if ((v & 1) && v > (uint32_t)__isr_vector && v < (uint32_t)__etext) r.stack[found++] = v;
+	}
+	while (found < CRASH_STACK_WORDS) r.stack[found++] = 0;
+}
+
+// Called by the handler below with the stack frame the fault pushed
+// (r0, r1, r2, r3, r12, lr, pc, xpsr, then the FPU registers if they were in
+// use) and the handler's EXC_RETURN, which says whether they were
+extern "C" __attribute__((used)) void rrptr_fault(const uint32_t* frame, uint32_t exc_return) {
 	NRF_POWER->GPREGRET2 = CRASH_REBOOT;
 	CrashRecord r;
 	r.magic = CRASH_MAGIC;
@@ -134,6 +156,10 @@ extern "C" __attribute__((used)) void rrptr_fault(const uint32_t* frame) {
 	r.uptime_s = millis() / 1000;
 	r.pool_free = last_pool_free;
 	r.pool_lowest = last_pool_lowest;
+	// The caller's stack starts after the frame, and a word of padding if the
+	// fault aligned it (xPSR bit 9)
+	const uint32_t* caller = frame + ((exc_return & 0x10) ? 8 : 26) + ((frame[7] & (1 << 9)) ? 1 : 0);
+	scan_stack(r, caller);
 	r.check = crash_check(r);
 	write_crash_record(r);
 	NVIC_SystemReset();
@@ -148,6 +174,7 @@ extern "C" __attribute__((used)) void rrptr_fault(const uint32_t* frame) {
 			"ite eq          \n"                         \
 			"mrseq r0, msp   \n"                         \
 			"mrsne r0, psp   \n"                         \
+			"mov r1, lr      \n"                         \
 			"b rrptr_fault   \n");                       \
 	}
 RRPTR_FAULT_HANDLER(MemoryManagement_Handler)
@@ -171,6 +198,8 @@ extern "C" __attribute__((noinline, noreturn)) void rrptr_out_of_memory(void) {
 	r.uptime_s = millis() / 1000;
 	r.pool_free = pool;
 	r.pool_lowest = (last_pool_lowest && last_pool_lowest < pool) ? last_pool_lowest : pool;
+	// Nothing to scan: the stack was unwound by the time the loop caught it
+	for (size_t i = 0; i < CRASH_STACK_WORDS; i++) r.stack[i] = 0;
 	r.check = crash_check(r);
 	Serial.flush();  // the log line before this was cut short by the reset
 	__disable_irq();
@@ -225,6 +254,16 @@ const char* NRF52Board::last_crash() {
 		(unsigned long)(up / 60 % 60), (unsigned long)(up % 60),
 		(unsigned long)r.pool_free, (unsigned long)r.pool_lowest, (unsigned long)r.count,
 		r.build == (uint32_t)__etext ? "" : ", in other firmware");
+	return text;
+}
+
+const char* NRF52Board::crash_stack() {
+	if (crash_cleared || !crash_valid() || !stored_crash.stack[0]) return nullptr;
+	static char text[8 + CRASH_STACK_WORDS * 11];
+	size_t at = snprintf(text, sizeof(text), "stack");
+	for (size_t i = 0; i < CRASH_STACK_WORDS && stored_crash.stack[i]; i++) {
+		at += snprintf(text + at, sizeof(text) - at, " 0x%08lx", (unsigned long)stored_crash.stack[i]);
+	}
 	return text;
 }
 

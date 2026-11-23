@@ -151,6 +151,7 @@ static void cmd_stats() {
 		(unsigned long)(up / 3600 % 24), (unsigned long)(up / 60 % 60), (unsigned long)(up % 60),
 		board.reset_reason());
 	if (board.last_crash()) reply("last crash: %s", board.last_crash());
+	if (board.crash_stack()) reply("crash %s", board.crash_stack());
 	reply("battery %u mV", board.battery_mv());
 	if (status::pool_size()) {
 		reply("pool free %lu of %lu bytes, lowest %lu", (unsigned long)status::pool_free(), (unsigned long)status::pool_size(),
@@ -622,6 +623,7 @@ static void cmd_crash(const char* arg) {
 	if (arg) { reply("Error: crash [clear]"); return; }
 	const char* crash = board.last_crash();
 	reply("last crash: %s", crash ? crash : "none recorded");
+	if (board.crash_stack()) reply("crash %s", board.crash_stack());
 }
 
 static void cmd_help() {

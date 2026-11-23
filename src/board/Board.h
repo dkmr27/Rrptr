@@ -52,6 +52,8 @@ public:
 	virtual const char* reset_reason() = 0;
 	// The last crash the board recorded, as one line of text, or null if none
 	virtual const char* last_crash() { return nullptr; }
+	// Likely return addresses from the crashed stack, as one line, or null
+	virtual const char* crash_stack() { return nullptr; }
 	// Forgets the recorded crash. False if the board keeps no crash record.
 	virtual bool clear_crash() { return false; }
 	// The memory pool's free and lowest free bytes, kept for the crash record
