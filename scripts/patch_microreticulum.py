@@ -7,8 +7,6 @@ import os
 
 Import("env")
 
-MARKER = "Rrptr patch"
-
 # Transport::jobs() pumps the links' resource watchdogs while _jobs_running is set.
 # A watchdog that resends (an unanswered resource advertisement, a part request
 # re-sent) goes through Transport::outbound(), which waits for _jobs_running to
@@ -47,6 +45,23 @@ TRANSPORT_FIXES = [
 		"\t\t}\n"
 		"\t}\n\n"
 		"\t// CBA send announce retransmission packets\n",
+	),
+	# The path and known destinations stores get their record limit only after
+	# init() has loaded them, so the prune init() does at boot, which also
+	# rewrites the index so evicted keys stay gone, sees no limit. A put()
+	# evicts only from the index in RAM, and Rrptr's stores compact only when
+	# full, so the index on flash keeps every key since the last compaction:
+	# each boot loaded all of them (184 destinations against a limit of 100)
+	# until the next new one arrived. The limit is now set before init().
+	(
+		"\t\t\tTRACE(\"Initializing path table store...\");\n",
+		"\t\t\t_path_store.set_max_recs(_path_table_maxsize);  // Rrptr patch: before init() prunes\n"
+		"\t\t\tTRACE(\"Initializing path table store...\");\n",
+	),
+	(
+		"\t\t\tTRACE(\"Initializing known destinations store...\");\n",
+		"\t\t\tIdentity::_known_store.set_max_recs(Identity::_known_destinations_maxsize);  // Rrptr patch: before init() prunes\n"
+		"\t\t\tTRACE(\"Initializing known destinations store...\");\n",
 	),
 ]
 
@@ -96,18 +111,24 @@ INTERFACE_FIXES = [
 ]
 
 
+# Each fix is checked on its own, so one added later still reaches a library
+# copy that already has the others
 def patch(path, fixes):
 	with open(path, newline="", encoding="utf-8") as f:
 		text = f.read()
-	if MARKER in text:
-		return
 	newline = "\r\n" if "\r\n" in text else "\n"
 	text = text.replace("\r\n", "\n")
+	changed = False
 	for old, new in fixes:
+		if new in text:
+			continue
 		if text.count(old) != 1:
 			raise SystemExit("Rrptr: %s has changed, its patch in %s needs checking"
 				% (path, os.path.basename(__file__)))
 		text = text.replace(old, new)
+		changed = True
+	if not changed:
+		return
 	with open(path, "w", newline="", encoding="utf-8") as f:
 		f.write(text.replace("\n", newline))
 	print("Rrptr: patched " + path)
