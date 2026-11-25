@@ -447,6 +447,10 @@ void begin(Radio* r, LoRaInterface* l) {
 		snprintf(ota_path, sizeof(ota_path), "/page/ota_%s.mu", RNS::Cryptography::random(3).toHex().c_str());
 		dest.register_request_handler(ota_path, ota_page, allow);
 	}
+	// microReticulum answers a path request with an announce of its own, without
+	// app_data unless the destination has a default: without one, a client that
+	// found the node that way shows it as "Peer <hash>" instead of by name
+	dest.set_default_app_data(Bytes(settings::node_name()));
 	next_announce = millis() + BOOT_ANNOUNCE_DELAY_MS
 		+ RNS::Cryptography::random(1).data()[0] * BOOT_ANNOUNCE_JITTER_STEP_MS;
 	R_INFO("NomadNet page on %s", dest.hash().toHex().c_str());
@@ -455,7 +459,10 @@ void begin(Radio* r, LoRaInterface* l) {
 bool announce() {
 	if (!dest) return false;
 	next_announce = millis() + ANNOUNCE_INTERVAL_MS;
-	dest.announce(Bytes(settings::node_name()));
+	// Kept up to date for path request answers, in case the name has changed
+	Bytes name(settings::node_name());
+	dest.set_default_app_data(name);
+	dest.announce(name);
 	return true;
 }
 
