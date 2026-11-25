@@ -65,9 +65,16 @@ static void read_name(const RNS::Bytes& app_data, char* out, size_t out_size) {
 
 class Listener : public RNS::AnnounceHandler {
 public:
+	// Not called: microReticulum calls the one with the packet, below
+	void received_announce(const RNS::Bytes&, const RNS::Identity&, const RNS::Bytes&) override {}
+
+	// The packet carries the hop count and signal of this announce as it
+	// arrived, where the path table and the interface may already hold a later
+	// packet's. Hops count the receiving one, so 1 is heard directly.
 	void received_announce(const RNS::Bytes& destination_hash, const RNS::Identity& announced_identity,
-			const RNS::Bytes& app_data) override {
-		if (RNS::Transport::hops_to(destination_hash) != 1 || !announced_identity) return;
+			const RNS::Bytes& app_data, const RNS::Packet& packet) override {
+		(void)destination_hash;
+		if (packet.hops() != 1 || !announced_identity) return;
 		RNS::Bytes id = announced_identity.hash();
 		if (id.size() != ID_LEN) return;
 
@@ -89,8 +96,9 @@ public:
 		char name[NAME_LEN + 1];
 		read_name(app_data, name, sizeof(name));
 		if (name[0]) strcpy(e.name, name);
-		e.rssi = lora_interface.r_stat_rssi();
-		e.snr = lora_interface.r_stat_snr();
+		// Set from the interface as the packet came in; NaN only if it had none
+		e.rssi = isnan(packet.rssi()) ? lora_interface.r_stat_rssi() : packet.rssi();
+		e.snr = isnan(packet.snr()) ? lora_interface.r_stat_snr() : packet.snr();
 		e.heard_ms = millis();
 		entries[0] = e;
 	}
