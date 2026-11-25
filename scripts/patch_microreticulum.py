@@ -75,6 +75,27 @@ RETICULUM_FIXES = [
 ]
 
 
+# Interface::handle_incoming() and send_outgoing() also reset the board when the
+# pool runs out, each with its own NVIC_SystemReset(). Those resets read as
+# "software, unplanned" with no record, so they go the same way. The PC
+# recorded is in the function that caught it.
+def interface_oom(function):
+	error = "\t\tERROR(\"Interface::%s: bad_alloc - OUT OF MEMORY\");\n" % function
+	return (
+		error + "\t\t// Critical OOM, restarting\n#if defined(ESP32)\n",
+		error + "\t\t// Critical OOM, restarting\n"
+		"#if defined(RRPTR_MCU_NRF52)\n"
+		"\t\trrptr_out_of_memory();  // Rrptr patch\n"
+		"#elif defined(ESP32)\n",
+	)
+
+INTERFACE_FIXES = [
+	RETICULUM_FIXES[0],  # the declaration
+	interface_oom("send_outgoing"),
+	interface_oom("handle_incoming"),
+]
+
+
 def patch(path, fixes):
 	with open(path, newline="", encoding="utf-8") as f:
 		text = f.read()
@@ -99,3 +120,6 @@ if os.path.exists(transport):
 reticulum = os.path.join(libdeps, "microReticulum", "src", "microReticulum", "Reticulum.cpp")
 if os.path.exists(reticulum):
 	patch(reticulum, RETICULUM_FIXES)
+interface = os.path.join(libdeps, "microReticulum", "src", "microReticulum", "Interface.cpp")
+if os.path.exists(interface):
+	patch(interface, INTERFACE_FIXES)

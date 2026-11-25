@@ -47,9 +47,10 @@ Board& board = nrf52_board;
 // the bootloader), which Rrptr does not use: its storage is on external flash.
 //
 // microReticulum also resets the board itself when its memory pool runs out
-// (Reticulum::loop() catches bad_alloc and calls NVIC_SystemReset). That is no
-// fault, so the patch in scripts/patch_microreticulum.py sends it to
-// rrptr_out_of_memory() below, which records it the same way.
+// (Reticulum::loop(), Interface::handle_incoming() and send_outgoing() catch
+// bad_alloc and call NVIC_SystemReset). That is no fault, so the patch in
+// scripts/patch_microreticulum.py sends them to rrptr_out_of_memory() below,
+// which records it the same way.
 //
 // GPREGRET2 (GPREGRET is the bootloader's) says why the last reset happened:
 // PLANNED_REBOOT from reboot(), CRASH_REBOOT from a handler. A software reset
@@ -181,8 +182,9 @@ RRPTR_FAULT_HANDLER(MemoryManagement_Handler)
 RRPTR_FAULT_HANDLER(BusFault_Handler)
 RRPTR_FAULT_HANDLER(UsageFault_Handler)
 
-// Called by the patched Reticulum::loop() in place of its reset when the pool
-// runs out. The PC recorded is the call's return address, in Reticulum::loop().
+// Called by the patched library in place of its reset when the pool runs out.
+// The PC recorded is the call's return address, in the function that caught
+// it: Reticulum::loop(), Interface::handle_incoming() or send_outgoing().
 extern "C" __attribute__((noinline, noreturn)) void rrptr_out_of_memory(void) {
 	uint32_t pool = RNS::Utilities::Memory::heap_pool_free();
 	CrashRecord r;
