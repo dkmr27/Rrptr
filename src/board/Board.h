@@ -10,6 +10,7 @@
 #include <SPI.h>
 
 #include "board/RadioPins.h"
+#include "status/Status.h"
 
 class Board {
 public:
@@ -58,6 +59,10 @@ public:
 	virtual bool clear_crash() { return false; }
 	// The memory pool's free and lowest free bytes, kept for the crash record
 	virtual void note_pool(size_t free, size_t lowest) { (void)free; (void)lowest; }
+	// The low-water snapshot, kept for a fault's crash record
+	virtual void note_snapshot(const status::MemSnapshot& s) { (void)s; }
+	// The snapshot in the recorded crash, or null
+	virtual const status::MemSnapshot* crash_snapshot() { return nullptr; }
 	// Bootloader version, or null if the board cannot tell
 	virtual const char* bootloader_version() { return nullptr; }
 

@@ -57,7 +57,7 @@ Board& board = nrf52_board;
 // with neither was not Rrptr's doing.
 
 static const uint32_t CRASH_PAGE = 0xF3000;
-static const uint32_t CRASH_MAGIC = 0x52524332;  // "RRC2"; a record of an older layout reads as blank
+static const uint32_t CRASH_MAGIC = 0x52524333;  // "RRC3"; a record of an older layout reads as blank
 static const uint8_t PLANNED_REBOOT = 0xA5;
 static const uint8_t CRASH_REBOOT = 0x5C;
 
@@ -75,8 +75,12 @@ struct CrashRecord {
 	uint32_t uptime_s;
 	uint32_t pool_free, pool_lowest;
 	uint32_t stack[CRASH_STACK_WORDS];  // likely return addresses, nearest first; 0 = none
+	// Tables and free memory: taken when the pool ran out, or for a fault the
+	// last low-water one (walking the tables after a fault is not safe)
+	status::MemSnapshot mem;
 	uint32_t check;
 };
+static_assert(sizeof(CrashRecord) % 4 == 0, "the record is written a word at a time");
 
 extern "C" uint32_t __etext[];       // from the linker script: end of the code
 extern "C" uint32_t __isr_vector[];  // from the startup code: start of the code
@@ -85,6 +89,8 @@ extern "C" uint32_t __StackTop[];    // from the linker script: end of RAM
 static const CrashRecord& stored_crash = *(const CrashRecord*)CRASH_PAGE;
 // Kept up to date by note_pool(), copied into the record by the handler
 static volatile uint32_t last_pool_free = 0, last_pool_lowest = 0;
+// Kept up to date by note_snapshot(); all zero until the first one
+static status::MemSnapshot last_snapshot = {};
 
 static uint32_t crash_check(const CrashRecord& r) {
 	const uint32_t* w = (const uint32_t*)&r;
@@ -161,6 +167,7 @@ extern "C" __attribute__((used)) void rrptr_fault(const uint32_t* frame, uint32_
 	// fault aligned it (xPSR bit 9)
 	const uint32_t* caller = frame + ((exc_return & 0x10) ? 8 : 26) + ((frame[7] & (1 << 9)) ? 1 : 0);
 	scan_stack(r, caller);
+	r.mem = last_snapshot;
 	r.check = crash_check(r);
 	write_crash_record(r);
 	NVIC_SystemReset();
@@ -202,6 +209,8 @@ extern "C" __attribute__((noinline, noreturn)) void rrptr_out_of_memory(void) {
 	r.pool_lowest = (last_pool_lowest && last_pool_lowest < pool) ? last_pool_lowest : pool;
 	// Nothing to scan: the stack was unwound by the time the loop caught it
 	for (size_t i = 0; i < CRASH_STACK_WORDS; i++) r.stack[i] = 0;
+	// The tables are still intact: take them as they are now
+	status::take_snapshot(r.mem);
 	r.check = crash_check(r);
 	Serial.flush();  // the log line before this was cut short by the reset
 	__disable_irq();
@@ -210,6 +219,8 @@ extern "C" __attribute__((noinline, noreturn)) void rrptr_out_of_memory(void) {
 	NVIC_SystemReset();
 	while (true) {}
 }
+
+void NRF52Board::note_snapshot(const status::MemSnapshot& s) { last_snapshot = s; }
 
 void NRF52Board::note_pool(size_t free, size_t lowest) {
 	last_pool_free = free;
@@ -257,6 +268,12 @@ const char* NRF52Board::last_crash() {
 		(unsigned long)r.pool_free, (unsigned long)r.pool_lowest, (unsigned long)r.count,
 		r.build == (uint32_t)__etext ? "" : ", in other firmware");
 	return text;
+}
+
+const status::MemSnapshot* NRF52Board::crash_snapshot() {
+	// All zero: the fault came before the first sample
+	if (crash_cleared || !crash_valid() || (!stored_crash.mem.uptime_s && !stored_crash.mem.free_bytes)) return nullptr;
+	return &stored_crash.mem;
 }
 
 const char* NRF52Board::crash_stack() {

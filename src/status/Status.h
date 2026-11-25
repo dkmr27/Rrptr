@@ -7,6 +7,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
 
 namespace status {
 	// Start-up stopped early with this error; null if it finished
@@ -24,4 +25,23 @@ namespace status {
 	size_t pool_lowest();
 	size_t heap_lowest();
 	void sample();
+
+	// The free memory and the size of microReticulum's tables at one moment. One
+	// is kept from the sample with the least free (the pool on nRF52, the heap on
+	// other boards), so it shows what filled memory; nRF52 boards also keep one
+	// in the crash record.
+	struct MemSnapshot {
+		uint32_t uptime_s;
+		uint32_t free_bytes;
+		uint32_t fragmented;  // % of the free pool outside its largest block
+		uint16_t paths, destinations, announces, held_announces;
+		uint16_t links, link_table, reverse_table, receipts;
+		uint16_t path_requests, discovery_path_requests, path_states, hashlist;
+	};
+	// Fills s from the tables now. Reads counts only, so it allocates nothing.
+	void take_snapshot(MemSnapshot& s);
+	// The one with the least free since boot; null before the first sample
+	const MemSnapshot* low_snapshot();
+	// As three lines of text, each passed to line
+	void describe(const MemSnapshot& s, void (*line)(const char*));
 }

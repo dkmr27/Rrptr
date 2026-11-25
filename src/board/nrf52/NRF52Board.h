@@ -19,6 +19,8 @@ public:
 	const char* crash_stack() override;
 	bool clear_crash() override;
 	void note_pool(size_t free, size_t lowest) override;
+	void note_snapshot(const status::MemSnapshot& s) override;
+	const status::MemSnapshot* crash_snapshot() override;
 	const char* bootloader_version() override;
 };
 

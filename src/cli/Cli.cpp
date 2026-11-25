@@ -614,6 +614,8 @@ static void cmd_test(char* what, char* arg) {
 }
 #endif
 
+static void reply_indented(const char* text) { reply("  %s", text); }
+
 static void cmd_crash(const char* arg) {
 	if (arg && !strcmp(arg, "clear")) {
 		if (board.clear_crash()) reply("Crash record cleared");
@@ -624,6 +626,27 @@ static void cmd_crash(const char* arg) {
 	const char* crash = board.last_crash();
 	reply("last crash: %s", crash ? crash : "none recorded");
 	if (board.crash_stack()) reply("crash %s", board.crash_stack());
+	if (const status::MemSnapshot* mem = board.crash_snapshot()) {
+		reply("tables at the crash:");
+		status::describe(*mem, reply_indented);
+	}
+}
+
+// Free memory and the size of microReticulum's tables: now, at the lowest
+// point since boot, and at the last crash
+static void cmd_mem() {
+	status::MemSnapshot now;
+	status::take_snapshot(now);
+	reply("now:");
+	status::describe(now, reply_indented);
+	if (const status::MemSnapshot* low = status::low_snapshot()) {
+		reply("lowest since boot:");
+		status::describe(*low, reply_indented);
+	}
+	if (const status::MemSnapshot* mem = board.crash_snapshot()) {
+		reply("at the last crash:");
+		status::describe(*mem, reply_indented);
+	}
 }
 
 static void cmd_help() {
@@ -632,6 +655,7 @@ static void cmd_help() {
 	reply("stats                       uptime, battery, radio and traffic counters");
 	reply("bat                         battery voltage");
 	reply("crash [clear]               the last recorded crash, or forget it");
+	reply("mem                         free memory and table sizes: now, lowest, at the crash");
 	reply("get id                     transport identity and destination hashes");
 	reply("an|announce [mgmt|probe|nomad|discovery]  announce now (default all)");
 	reply("neighbours                  nodes heard directly");
@@ -684,6 +708,7 @@ static void run(char* text) {
 	else if (!strcmp(cmd, "stats")) cmd_stats();
 	else if (!strcmp(cmd, "bat")) cmd_bat();
 	else if (!strcmp(cmd, "crash")) cmd_crash(arg1);
+	else if (!strcmp(cmd, "mem")) cmd_mem();
 	else if (!strcmp(cmd, "prov")) cmd_prov(arg1, arg2);
 	else if (!strcmp(cmd, "neighbours")) cmd_neighbours();
 	else if (!strcmp(cmd, "an") || !strcmp(cmd, "announce")) cmd_announce(arg1);
