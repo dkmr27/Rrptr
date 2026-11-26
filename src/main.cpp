@@ -131,6 +131,32 @@ void setup() {
 	display::begin(radio, lora);
 }
 
+// microReticulum has no link watchdog yet (Link::start_watchdog() is a stub),
+// so a link whose other end goes away without closing it, such as a NomadNet
+// client that quits, moves out of range or loses its close packet, stays open
+// for good, keys and all. A live peer sends a keepalive every 6 minutes and
+// Python RNS treats a link as stale after 12, so one silent for 15 is closed.
+static const double LINK_IDLE_CLOSE_S = 15 * 60;
+
+static void close_idle_links() {
+	static uint32_t last = 0;
+	if (millis() - last < 30000) return;
+	last = millis();
+	try {
+		// A copy: teardown() changes the set it came from
+		std::set<RNS::Link> links(RNS::Transport::active_links());
+		for (RNS::Link link : links) {
+			if (link.status() == RNS::Type::Link::CLOSED) continue;
+			double idle = link.inactive_for();
+			if (idle < LINK_IDLE_CLOSE_S) continue;
+			R_INFO("Closing link %s, idle %lu s", link.hash().toHex().c_str(), (unsigned long)idle);
+			link.teardown();
+		}
+	} catch (const std::exception& e) {
+		R_ERROR("Closing idle links failed: %s", e.what());  // tried again in 30 s
+	}
+}
+
 static void greet() {
 	console.printf("\r\nRrptr %s on %s, %s\r\n", RRPTR_VERSION, board.name(), settings::node_name().c_str());
 	if (status::start_error()) console.printf("ERROR: start-up failed, only partly running: %s\r\n", status::start_error());
@@ -197,6 +223,7 @@ void loop() {
 	}
 
 	reticulum.loop();  // also runs the LoRa interface
+	close_idle_links();
 	nomadnet::loop();
 	discovery::loop();
 
