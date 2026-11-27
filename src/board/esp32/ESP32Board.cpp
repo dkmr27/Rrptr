@@ -6,6 +6,7 @@
 #include <esp_ota_ops.h>
 #include <esp_sleep.h>
 #include <esp_system.h>
+#include <esp_task_wdt.h>
 
 #include "console/Console.h"
 
@@ -174,6 +175,33 @@ const char* const* ESP32Board::ota_help() const {
 
 void ESP32Board::reboot() {
 	esp_restart();
+}
+
+// The IDF task watchdog, watching the loop task. It is set up afresh on every
+// boot, so the updater app in the other slot is not affected. Light sleep stops
+// its timer along with the loop, so sleeping does not count as hanging.
+void ESP32Board::watchdog_begin(uint32_t seconds) {
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+	// IDF 4 sets the timeout and keeps its idle task checks as they were
+	esp_task_wdt_init(seconds, true);  // true: a reset, reported as "watchdog"
+#else
+	esp_task_wdt_config_t config = {};
+	config.timeout_ms = seconds * 1000;
+	config.trigger_panic = true;  // a reset, reported as "watchdog"
+	// Keep watching the idle tasks the core watches by default
+#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0
+	config.idle_core_mask |= 1 << 0;
+#endif
+#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1
+	config.idle_core_mask |= 1 << 1;
+#endif
+	if (esp_task_wdt_init(&config) == ESP_ERR_INVALID_STATE) esp_task_wdt_reconfigure(&config);
+#endif
+	esp_task_wdt_add(nullptr);  // the calling task: setup() runs in the loop task
+}
+
+void ESP32Board::watchdog_feed() {
+	esp_task_wdt_reset();
 }
 
 const char* ESP32Board::reset_reason() {

@@ -11,6 +11,8 @@ public:
 	uint16_t battery_mv() override;
 	void idle(uint32_t max_ms) override;
 	void reboot() override;
+	void watchdog_begin(uint32_t seconds) override;
+	void watchdog_feed() override;
 	bool has_ota() const override { return true; }
 	bool enter_ota() override;
 	const char* const* ota_help() const override;

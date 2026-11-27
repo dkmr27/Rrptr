@@ -61,7 +61,7 @@ static const uint32_t CRASH_MAGIC = 0x52524333;  // "RRC3"; a record of an older
 static const uint8_t PLANNED_REBOOT = 0xA5;
 static const uint8_t CRASH_REBOOT = 0x5C;
 
-enum CrashKind : uint32_t { KIND_FAULT = 0, KIND_OUT_OF_MEMORY = 1 };
+enum CrashKind : uint32_t { KIND_FAULT = 0, KIND_OUT_OF_MEMORY = 1, KIND_HANG = 2 };
 
 static const size_t CRASH_STACK_WORDS = 8;   // return addresses kept
 static const size_t CRASH_STACK_SCAN = 256;  // stack words searched for them
@@ -220,6 +220,67 @@ extern "C" __attribute__((noinline, noreturn)) void rrptr_out_of_memory(void) {
 	while (true) {}
 }
 
+// ─── Watchdog ───────────────────────────────────────────────
+// The chip's own watchdog keeps counting through a software reset, and the
+// bootloader does not feed it, so an update over Bluetooth or USB that took
+// longer than its timeout would be cut off. Instead a FreeRTOS timer checks
+// that loop() still feeds it. A loop stuck waiting, such as microReticulum's
+// outbound() waiting on its own jobs(), lets the timer run, and the timer
+// records where the loop task stopped, then resets. It cannot catch code that
+// spins with interrupts off; that is rare enough to accept.
+
+static TaskHandle_t watched_task = nullptr;
+static volatile uint32_t fed_ms = 0;
+static uint32_t watchdog_ms = 0;
+
+static void record_hang() {
+	CrashRecord r;
+	r.magic = CRASH_MAGIC;
+	r.build = (uint32_t)__etext;
+	r.kind = KIND_HANG;
+	r.count = (crash_valid() ? stored_crash.count : 0) + 1;
+	// The loop task is not running, so its registers are saved on its stack,
+	// at the address in the first word of its task block: r4-r11 and
+	// EXC_RETURN, the FPU's s16-s31 if it was in use, then the frame the
+	// exception pushed, as for a fault
+	const uint32_t* top = *(const uint32_t* const*)watched_task;
+	uint32_t exc_return = top[8];
+	const uint32_t* frame = top + 9 + ((exc_return & 0x10) ? 0 : 16);
+	r.lr = frame[5];
+	r.pc = frame[6];
+	r.cfsr = 0;
+	r.hfsr = 0;
+	r.fault_addr = 0;
+	r.uptime_s = millis() / 1000;
+	r.pool_free = last_pool_free;
+	r.pool_lowest = last_pool_lowest;
+	const uint32_t* caller = frame + ((exc_return & 0x10) ? 8 : 26) + ((frame[7] & (1 << 9)) ? 1 : 0);
+	scan_stack(r, caller);
+	// The loop may have stopped part way through changing a table, so the
+	// tables are not walked: the last low-water snapshot is kept, as for a fault
+	r.mem = last_snapshot;
+	r.check = crash_check(r);
+	__disable_irq();
+	write_crash_record(r);
+	NRF_POWER->GPREGRET2 = CRASH_REBOOT;
+	NVIC_SystemReset();
+}
+
+static void watchdog_check(TimerHandle_t) {
+	if (millis() - fed_ms >= watchdog_ms) record_hang();
+}
+
+// Called from setup(), which runs in the loop task
+void NRF52Board::watchdog_begin(uint32_t seconds) {
+	watched_task = xTaskGetCurrentTaskHandle();
+	watchdog_ms = seconds * 1000;
+	fed_ms = millis();
+	TimerHandle_t timer = xTimerCreate("watchdog", pdMS_TO_TICKS(1000), pdTRUE, nullptr, watchdog_check);
+	if (timer) xTimerStart(timer, 0);
+}
+
+void NRF52Board::watchdog_feed() { fed_ms = millis(); }
+
 void NRF52Board::note_snapshot(const status::MemSnapshot& s) { last_snapshot = s; }
 
 void NRF52Board::note_pool(size_t free, size_t lowest) {
@@ -252,6 +313,16 @@ const char* NRF52Board::last_crash() {
 		snprintf(text, sizeof(text),
 			"out of memory at 0x%08lx, after %lud %02lu:%02lu:%02lu, pool free %lu, lowest %lu, crash %lu%s",
 			(unsigned long)r.pc,
+			(unsigned long)(up / 86400), (unsigned long)(up / 3600 % 24),
+			(unsigned long)(up / 60 % 60), (unsigned long)(up % 60),
+			(unsigned long)r.pool_free, (unsigned long)r.pool_lowest, (unsigned long)r.count,
+			r.build == (uint32_t)__etext ? "" : ", in other firmware");
+		return text;
+	}
+	if (r.kind == KIND_HANG) {
+		snprintf(text, sizeof(text),
+			"hung at PC 0x%08lx, LR 0x%08lx, after %lud %02lu:%02lu:%02lu, pool free %lu, lowest %lu, crash %lu%s",
+			(unsigned long)r.pc, (unsigned long)r.lr,
 			(unsigned long)(up / 86400), (unsigned long)(up / 3600 % 24),
 			(unsigned long)(up / 60 % 60), (unsigned long)(up % 60),
 			(unsigned long)r.pool_free, (unsigned long)r.pool_lowest, (unsigned long)r.count,
@@ -372,7 +443,10 @@ const char* NRF52Board::reset_reason() {
 	if (r & POWER_RESETREAS_DOG_Msk)      return "watchdog";
 	if (r & POWER_RESETREAS_SREQ_Msk) {
 		if (booted_from_crash) {
-			return crash_valid() && stored_crash.kind == KIND_OUT_OF_MEMORY ? "out of memory" : "crash";
+			if (!crash_valid()) return "crash";
+			if (stored_crash.kind == KIND_OUT_OF_MEMORY) return "out of memory";
+			if (stored_crash.kind == KIND_HANG) return "watchdog, loop hung";
+			return "crash";
 		}
 		if (booted_from_planned) return "software";
 		// Not Rrptr: e.g. the first boot after flashing, or a USB 1200 baud touch

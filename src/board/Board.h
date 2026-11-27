@@ -12,6 +12,13 @@
 #include "board/RadioPins.h"
 #include "status/Status.h"
 
+// A main loop that has not come round for this long is taken as hung, and the
+// board resets. The longest normal pass, such as a store compacting on flash,
+// takes a few seconds.
+#ifndef BOARD_WATCHDOG_S
+	#define BOARD_WATCHDOG_S 30
+#endif
+
 class Board {
 public:
 	virtual ~Board() {}
@@ -45,6 +52,11 @@ public:
 	virtual void stay_awake() {}
 
 	virtual void reboot() = 0;
+	// Resets the board if watchdog_feed() is not called for `seconds`: a hung
+	// main loop then reboots instead of staying off the air. Started once
+	// set-up is done; loop() feeds it.
+	virtual void watchdog_begin(uint32_t seconds) { (void)seconds; }
+	virtual void watchdog_feed() {}
 	// There is an OTA update mode, and enter_ota() reboots into it. Returns false if
 	// it could not. ota_help() says what happens there, one line per reply.
 	virtual bool has_ota() const { return false; }

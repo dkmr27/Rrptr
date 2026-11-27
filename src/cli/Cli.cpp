@@ -544,6 +544,13 @@ static void cmd_test(char* what, char* arg) {
 		console.flush();
 		__builtin_trap();
 	}
+	// Stops the main loop the way a deadlock does, waiting without end, to
+	// check the watchdog resets the board and records where
+	if (what && !strcmp(what, "hang")) {
+		reply("Hanging, the watchdog should reset in %u s...", BOARD_WATCHDOG_S);
+		console.flush();
+		while (true) delay(100);
+	}
 	// Takes all of the memory pool and keeps it, so microReticulum's next
 	// allocation fails as it would when the pool runs out
 	if (what && !strcmp(what, "oom")) {
@@ -595,6 +602,7 @@ static void cmd_test(char* what, char* arg) {
 					std::vector<RNS::Bytes>(), interface, packet);
 				table.put(RNS::Cryptography::random(16), entry, 0);
 				if (i % 50 == 0) reply("added %ld: %u paths, pool free %lu, heap free %lu", i, (unsigned)table.size(), (unsigned long)status::pool_free(), (unsigned long)status::heap_free());
+				board.watchdog_feed();  // a large count runs far longer than the watchdog allows
 				delay(1);
 			}
 		}
@@ -687,6 +695,7 @@ static void cmd_help() {
 	reply("test uart off               power test: console UART off (until reboot)");
 	reply("test paths <n>              add n fake path entries (erase afterwards)");
 	reply("test crash                  crash on purpose, to check the crash record");
+	reply("test hang                   stop the main loop, to check the watchdog");
 	reply("test oom                    take all the memory pool, to check the out-of-memory record");
 #if defined(RRPTR_TEST_NOCRC)
 	reply("test tx nocrc               send one frame without CRC (receivers drop it)");

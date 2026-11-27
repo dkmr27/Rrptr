@@ -129,6 +129,7 @@ void setup() {
 	}
 	cli::begin(radio, lora);
 	display::begin(radio, lora);
+	board.watchdog_begin(BOARD_WATCHDOG_S);
 }
 
 // microReticulum has no link watchdog yet (Link::start_watchdog() is a stub),
@@ -191,6 +192,7 @@ static void storage_failed() {
 }
 
 void loop() {
+	board.watchdog_feed();
 	if (storage_error()) { storage_failed(); return; }
 	check_monitor();
 	status::sample();

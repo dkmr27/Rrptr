@@ -13,6 +13,8 @@ public:
 	void idle(uint32_t max_ms) override;
 	void stay_awake() override;
 	void reboot() override;
+	void watchdog_begin(uint32_t seconds) override;
+	void watchdog_feed() override;
 	const char* reset_reason() override;
 	// The updater app in the second app slot, if one has been flashed
 	bool has_ota() const override;
