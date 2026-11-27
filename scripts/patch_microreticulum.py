@@ -25,6 +25,48 @@ TRANSPORT_FIXES = [
 		"\t\t\tIdentity::_known_store.set_max_recs(Identity::_known_destinations_maxsize);  // Rrptr patch: before init() prunes\n"
 		"\t\t\tTRACE(\"Initializing known destinations store...\");\n",
 	),
+
+	# jobs() sends a neighbour probe when a link proof times out, and from its
+	# periodic neighbour scan, while _jobs_running is set. Sending goes through
+	# outbound(), which waits for _jobs_running to clear: with one thread it never
+	# does, and the node hangs, as with the resource watchdogs before upstream
+	# #103. A probe asked for during jobs() is now queued and sent once it is done.
+	(
+		"DestinationEntry empty_destination_entry;\n",
+		"DestinationEntry empty_destination_entry;\n\n"
+		"// Rrptr patch: neighbour probes asked for while jobs() runs, sent after it\n"
+		"static std::vector<Bytes> rrptr_deferred_probes;\n",
+	),
+	(
+		"\tTRACEF(\"Probing neighbor %s\", neighbor_hash.toHex().c_str());\n",
+		"\tTRACEF(\"Probing neighbor %s\", neighbor_hash.toHex().c_str());\n"
+		"\tif (_jobs_running) {  // Rrptr patch: sending now would wait on jobs() forever\n"
+		"\t\tif (rrptr_deferred_probes.size() < 8 && std::find(rrptr_deferred_probes.begin(),\n"
+		"\t\t\t\trrptr_deferred_probes.end(), neighbor_hash) == rrptr_deferred_probes.end()) {\n"
+		"\t\t\trrptr_deferred_probes.push_back(neighbor_hash);\n"
+		"\t\t}\n"
+		"\t\treturn true;\n"
+		"\t}\n",
+	),
+	(
+		"\t// CBA send announce retransmission packets\n",
+		"#if RNS_NEIGHBOR_PROBING\n"
+		"\t// Rrptr patch: the neighbour probes asked for during jobs\n"
+		"\tif (!rrptr_deferred_probes.empty()) {\n"
+		"\t\tstd::vector<Bytes> probes;\n"
+		"\t\tprobes.swap(rrptr_deferred_probes);\n"
+		"\t\tfor (const Bytes& neighbor_hash : probes) {\n"
+		"\t\t\ttry {\n"
+		"\t\t\t\t_dispatch_neighbor_probe(neighbor_hash);\n"
+		"\t\t\t}\n"
+		"\t\t\tcatch (const std::exception& e) {\n"
+		"\t\t\t\tERRORF(\"Error while sending a neighbor probe: %s\", e.what());\n"
+		"\t\t\t}\n"
+		"\t\t}\n"
+		"\t}\n"
+		"#endif\n\n"
+		"\t// CBA send announce retransmission packets\n",
+	),
 ]
 
 
