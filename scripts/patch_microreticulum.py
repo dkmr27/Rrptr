@@ -67,6 +67,44 @@ TRANSPORT_FIXES = [
 		"#endif\n\n"
 		"\t// CBA send announce retransmission packets\n",
 	),
+
+	# When an announce held back for a path request is put back into the announce
+	# table, jobs() erased the entry it was iterating over and inserted a new one,
+	# then culled the table, all inside the loop over that table. The loop then
+	# carried on from a freed node: a tester's node crashed in the next
+	# Identity::recall() on a garbage destination hash. The held announces are
+	# now put back once the loop is done, as Python RNS's in-place assignment
+	# amounts to.
+	(
+		"\t\t\t\tstd::vector<Bytes> completed_announces;\n",
+		"\t\t\t\tstd::vector<Bytes> completed_announces;\n"
+		"\t\t\t\t// Rrptr patch: put back after the loop, which erasing would break\n"
+		"\t\t\t\tstd::vector<std::pair<Bytes, AnnounceEntry>> rrptr_reinserted;\n",
+	),
+	(
+		"\t\t\t\t\t\t\t\t\t_announce_table.erase(destination_hash);\n"
+		"\t\t\t\t\t\t\t\t\t// CBA ACCUMULATES\n"
+		"\t\t\t\t\t\t\t\t\t_announce_table.insert({destination_hash, held_entry});\n"
+		"\t\t\t\t\t\t\t\t\tDEBUG(\"Reinserting held announce into table\");\n"
+		"\t\t\t\t\t\t\t\t\t// CBA IMMEDIATE CULL\n"
+		"\t\t\t\t\t\t\t\t\tcull_announce_table();\n",
+		"\t\t\t\t\t\t\t\t\trrptr_reinserted.emplace_back(destination_hash, held_entry);  // Rrptr patch\n"
+		"\t\t\t\t\t\t\t\t\tDEBUG(\"Reinserting held announce into table\");\n",
+	),
+	(
+		"\t\t\t\tfor (const auto& destination_hash : completed_announces) {\n"
+		"\t\t\t\t\t_announce_table.erase(destination_hash);\n"
+		"\t\t\t\t}\n",
+		"\t\t\t\tfor (const auto& destination_hash : completed_announces) {\n"
+		"\t\t\t\t\t_announce_table.erase(destination_hash);\n"
+		"\t\t\t\t}\n"
+		"\t\t\t\t// Rrptr patch: the held announces, put back now the loop is done\n"
+		"\t\t\t\tfor (const auto& [destination_hash, held_entry] : rrptr_reinserted) {\n"
+		"\t\t\t\t\t_announce_table.erase(destination_hash);\n"
+		"\t\t\t\t\t_announce_table.insert({destination_hash, held_entry});\n"
+		"\t\t\t\t}\n"
+		"\t\t\t\tif (!rrptr_reinserted.empty()) cull_announce_table();\n",
+	),
 ]
 
 
